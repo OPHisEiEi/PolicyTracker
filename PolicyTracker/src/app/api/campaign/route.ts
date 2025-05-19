@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import driver from "@/app/lib/neo4j";
+import pg from "@/app/lib/postgres";
 
 export async function GET(req: NextRequest) {
   const partyName = req.nextUrl.searchParams.get("party") || "";

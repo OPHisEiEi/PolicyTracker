@@ -6,8 +6,9 @@ export async function GET(
   req: NextRequest,
   context: { params: { province: string; region: string } }
 ) {
-  const province = decodeURIComponent(context.params.province);
-  const region = decodeURIComponent(context.params.region);
+  const { province, region } = await context.params; // ✅ await ที่นี่
+  const decodedProvince = decodeURIComponent(province);
+  const decodedRegion = decodeURIComponent(region);
 
   const session = driver.session();
   try {

@@ -1,45 +1,70 @@
+// src/app/api/partycategory/[name]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import driver from "@/app/lib/neo4j";
 
-export async function GET(req: NextRequest) {
+export async function GET(
+  req: NextRequest,
+  context: { params: Promise<{ name: string }> }
+) {
+  // รอ resolve params ก่อน
+  const { name } = await context.params;
+  const party = decodeURIComponent(name).trim();
+
+  if (!party) {
+    return NextResponse.json(
+      { error: "Missing party parameter" },
+      { status: 400 }
+    );
+  }
+
+  const session = driver.session();
   try {
-    const pathParts = req.nextUrl.pathname.split("/");
-    const encodedCategory = pathParts[pathParts.length - 1];
-    const category = decodeURIComponent(encodedCategory);
-
-    const session = driver.session();
-
     const result = await session.run(
       `
-      MATCH (p:Policy)-[:HAS_CATEGORY]->(c:Category {name: $category})
-      OPTIONAL MATCH (p)-[:BELONGS_TO]->(party:Party)
-      RETURN p.name AS policyName,
-             p.description AS description,
-             p.budget AS budget,
-             p.status AS status,
-             p.progress AS progress,
-             c.name AS categoryName,
-             party.name AS partyName
+      MATCH (p:Policy)-[:BELONGS_TO]->(party:Party {name: $party})
+      OPTIONAL MATCH (p)-[:HAS_CATEGORY]->(c:Category)
+      RETURN
+        p.name         AS policyName,
+        p.description  AS description,
+        p.budget       AS budget,
+        p.progress     AS progress,
+        c.name         AS categoryName,
+        party.name     AS partyName
       `,
-      { category }
+      { party }
     );
 
-    const policies = result.records.map((record) => ({
-      policyName: record.get("policyName"),
-      description: record.get("description"),
-      budget: record.get("budget")?.toNumber?.() ?? "-",
-      status: record.get("status")?.toString?.() ?? "-",
-      progress: record.get("progress")?.toString?.() ?? "-",
-      categoryName: record.get("categoryName"),
-      partyName: record.get("partyName") || "ไม่ระบุพรรค",
-    }));
+    const policies = result.records.map((record) => {
+      // แปลง Neo4j Integer เป็น number หรือ fallback เป็น "-"
+      const rawBudget = record.get("budget");
+      const budget =
+        rawBudget?.toNumber?.() ?? rawBudget ?? "-";
+
+      // progress อาจเป็น string หรือ number
+      const rawProgress = record.get("progress");
+      const progress =
+        typeof rawProgress === "string"
+          ? rawProgress
+          : rawProgress?.toString?.() ?? "-";
+
+      return {
+        policyName:   record.get("policyName"),
+        description:  record.get("description"),
+        budget,
+        progress,
+        categoryName: record.get("categoryName") || "-",
+        partyName:    record.get("partyName")    || "-",
+      };
+    });
 
     return NextResponse.json(policies);
   } catch (error) {
-    console.error("Neo4j error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    console.error("❌ Error in /api/partycategory:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   } finally {
-    const session = driver.session();
     await session.close();
   }
 }

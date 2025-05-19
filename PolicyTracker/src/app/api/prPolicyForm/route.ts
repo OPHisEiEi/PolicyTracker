@@ -2,22 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import driver from "@/app/lib/neo4j";
 import pg from "@/app/lib/postgres";
 
+// ✅ POST: สร้างนโยบายใหม่
 export async function POST(req: NextRequest) {
   const { name, description, banner, category, party } = await req.json();
   const session = driver.session();
 
   if (!party || party === "ไม่ทราบชื่อพรรค") {
-    return new NextResponse(JSON.stringify({ error: "ไม่พบข้อมูลพรรค" }), {
-      status: 400,
-      headers: { "Access-Control-Allow-Origin": "*" },
-    });
+    return NextResponse.json({ error: "ไม่พบข้อมูลพรรค" }, { status: 400 });
   }
 
   try {
-    // ✅ Clean ชื่อพรรค
     const cleanedParty = party.replace(/^พรรค\s*/g, "").trim();
 
-    // ✅ ดึง party_id จาก PostgreSQL
     const partyResult = await pg.query(
       `SELECT id FROM parties WHERE name = $1`,
       [cleanedParty]
@@ -29,29 +25,26 @@ export async function POST(req: NextRequest) {
 
     const party_id = partyResult.rows[0].id;
 
-    const existing = await pg.query(
+    const duplicateCheck = await pg.query(
       `SELECT id FROM policies WHERE name = $1`,
       [name]
     );
 
-    if ((existing?.rowCount ?? 0) > 0) {
+    if ((duplicateCheck.rowCount ?? 0) > 0) {
       return NextResponse.json({ error: "ชื่อนโยบายนี้ถูกใช้ไปแล้ว" }, { status: 400 });
     }
 
-
-    // ✅ INSERT ลง PostgreSQL แล้ว RETURNING id
-    const pgResult = await pg.query(
-      `
-      INSERT INTO policies (name, total_budget, created_at, party_id)
-      VALUES ($1, 0, NOW(), $2)
-      RETURNING id
-      `,
+    // ✅ เพิ่มใน PostgreSQL
+    const result = await pg.query(
+      `INSERT INTO policies (name, total_budget, created_at, party_id)
+       VALUES ($1, 0, NOW(), $2)
+       RETURNING id`,
       [name, party_id]
     );
 
-    const id = pgResult.rows[0].id; // ✅ ใช้ id จาก PostgreSQL
+    const id = result.rows[0].id;
 
-    // ✅ สร้าง Policy node ใน Neo4j โดยใช้ id นี้
+    // ✅ เพิ่มใน Neo4j
     await session.run(
       `
       MERGE (p:Policy {id: toInteger($id)})
@@ -73,9 +66,7 @@ export async function POST(req: NextRequest) {
       { id, name, description, banner, category, party: cleanedParty }
     );
 
-
-
-    return NextResponse.json({ message: "สร้างนโยบายสำเร็จ" });
+    return NextResponse.json({ message: "สร้างนโยบายสำเร็จ", id });
   } catch (err) {
     console.error("❌ POST error:", err);
     return NextResponse.json({ error: "เกิดข้อผิดพลาดที่เซิร์ฟเวอร์" }, { status: 500 });
@@ -84,9 +75,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-
-
-// ✅ PUT: อัปเดตนโยบายจาก id
+// ✅ PUT: อัปเดตนโยบายเดิม
 export async function PUT(req: NextRequest) {
   const { id, name, description, banner, category } = await req.json();
   const session = driver.session();
@@ -96,7 +85,7 @@ export async function PUT(req: NextRequest) {
   }
 
   try {
-    // ✅ 1. อัปเดต Neo4j
+    // ✅ อัปเดต Neo4j
     await session.run(
       `
       MATCH (p:Policy {id: toInteger($id)})
@@ -107,7 +96,7 @@ export async function PUT(req: NextRequest) {
       { id, name, description, banner }
     );
 
-    // ✅ 2. ลบและเชื่อม HAS_CATEGORY ใหม่
+    // ✅ ลบความสัมพันธ์เดิม
     await session.run(
       `
       MATCH (p:Policy {id: toInteger($id)})-[r:HAS_CATEGORY]->()
@@ -116,16 +105,17 @@ export async function PUT(req: NextRequest) {
       { id }
     );
 
+    // ✅ สร้างความสัมพันธ์ใหม่
     await session.run(
       `
       MATCH (p:Policy {id: toInteger($id)})
-      MERGE (cat:Category {name: $category})
-      MERGE (p)-[:HAS_CATEGORY]->(cat)
+      MERGE (c:Category {name: $category})
+      MERGE (p)-[:HAS_CATEGORY]->(c)
       `,
       { id, category }
     );
 
-    // ✅ 3. อัปเดต PostgreSQL
+    // ✅ อัปเดต PostgreSQL
     await pg.query(
       `UPDATE policies SET name = $1 WHERE id = $2`,
       [name, id]
@@ -139,4 +129,3 @@ export async function PUT(req: NextRequest) {
     await session.close();
   }
 }
-

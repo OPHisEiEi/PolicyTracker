@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import PRSidebar from "../components/PRSidebar";
 
@@ -19,19 +19,16 @@ export default function PRPolicyPage() {
   const [partyName, setPartyName] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const router = useRouter();
-  const pathname = usePathname();
 
   useEffect(() => {
-  const stored = localStorage.getItem("partyName");
-  setPartyName(stored ?? null);
-}, []); // ✅ แก้จาก [pathname] → []
-
+    const stored = localStorage.getItem("partyName");
+    setPartyName(stored ?? null);
+  }, []);
 
   useEffect(() => {
     if (!partyName) return;
 
     const fetchPolicies = async () => {
-      console.log("📤 ดึงนโยบายของพรรค:", partyName);
       try {
         const res = await fetch("/api/pr-policy", {
           method: "POST",
@@ -40,7 +37,6 @@ export default function PRPolicyPage() {
         });
 
         const data = await res.json();
-        console.log("📥 ได้ข้อมูล:", data);
         setPolicies(data);
       } catch (err) {
         console.error("❌ Failed to fetch policies:", err);
@@ -51,11 +47,12 @@ export default function PRPolicyPage() {
   }, [partyName]);
 
   const editPolicy = (id: number) => {
+    if (!id) return;
     router.push(`/prPolicyForm?policy_id=${id}`);
   };
 
   const deletePolicy = async (id: number) => {
-    if (!confirm("คุณแน่ใจว่าต้องการลบนโยบายนี้?")) return;
+    if (!id || !confirm("คุณแน่ใจว่าต้องการลบนโยบายนี้?")) return;
 
     try {
       const res = await fetch(`/api/pr-policy/${id}`, {
@@ -79,18 +76,14 @@ export default function PRPolicyPage() {
     <div className="min-h-screen bg-[#9795B5] flex">
       <PRSidebar />
       <div className="flex-1 md:ml-64">
-        {/* Header */}
         <header className="bg-white p-4 shadow-md flex justify-between items-center sticky top-0 z-10">
           <h1 className="text-2xl font-bold text-[#5D5A88]">PR พรรค {partyName}</h1>
           <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden text-3xl text-[#5D5A88]">☰</button>
           <ul className="hidden md:flex space-x-4">
-            <li>
-              <Link href="/login" className="text-[#5D5A88] hover:underline">ออกจากระบบ</Link>
-            </li>
+            <li><Link href="/login" className="text-[#5D5A88] hover:underline">ออกจากระบบ</Link></li>
           </ul>
         </header>
 
-        {/* Mobile Sidebar */}
         {menuOpen && (
           <div className="md:hidden bg-gray-100 p-4 absolute top-16 left-0 w-full shadow-md">
             <ul className="space-y-2">
@@ -103,7 +96,6 @@ export default function PRPolicyPage() {
           </div>
         )}
 
-        {/* Main Content */}
         <main className="p-6">
           <div className="flex justify-end mb-4">
             <button onClick={() => router.push("/prPolicyForm")} className="bg-[#5D5A88] text-white px-4 py-2 rounded hover:bg-[#46426b]">
@@ -116,7 +108,7 @@ export default function PRPolicyPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
             {policies.length > 0 ? (
               policies
-                .filter((policy) => policy.id != null) // ✅ ตัดตัวที่ไม่มี id ออก
+                .filter((policy) => typeof policy.id === "number")
                 .map((policy) => (
                   <div key={policy.id} className="bg-white p-4 rounded-lg shadow-md">
                     <p className="text-sm text-gray-500 mb-1">ID: {policy.id}</p>

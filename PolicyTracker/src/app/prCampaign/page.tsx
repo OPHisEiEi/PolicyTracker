@@ -14,20 +14,31 @@ interface Campaign {
   policy?: string;
   budget?: number;
   size?: string;
+  area?: string;
+  impact?: string;
+  isSpecial?: boolean;
 }
-
 
 export default function PRCampaignPage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [partyName, setPartyName] = useState<string | null>(null);
+  const [filter, setFilter] = useState<"all" | "normal" | "special">("all");
+
   const router = useRouter();
 
+  const filteredCampaigns = campaigns.filter((c) => {
+  if (filter === "special") return c.isSpecial === true;
+  if (filter === "normal") return !c.isSpecial;
+  return true;
+});
+
+
   useEffect(() => {
-  const storedParty = localStorage.getItem("partyName");
-  const cleanedParty = storedParty?.replace(/^พรรค\s*/i, "").trim() || null;
-  setPartyName(cleanedParty);
-}, []);
+    const storedParty = localStorage.getItem("partyName");
+    const cleanedParty = storedParty?.replace(/^พรรค\s*/i, "").trim() || null;
+    setPartyName(cleanedParty);
+  }, []);
 
   useEffect(() => {
     if (!partyName) return;
@@ -39,6 +50,7 @@ export default function PRCampaignPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ partyName }),
         });
+
         const data = await res.json();
         setCampaigns(data);
       } catch (error) {
@@ -121,34 +133,51 @@ export default function PRCampaignPage() {
 
           <h2 className="text-3xl text-white text-center">โครงการที่บันทึกไว้</h2>
 
+          <select
+    value={filter}
+    onChange={(e) => setFilter(e.target.value as any)}
+    className="p-2 rounded-md border border-gray-300 text-sm"
+  >
+    <option value="all">📋 ทั้งหมด</option>
+    <option value="normal">🧩 โครงการทั่วไป</option>
+    <option value="special">⭐ โครงการพิเศษ</option>
+  </select>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mt-6">
             {campaigns.length > 0 ? (
-              campaigns.map((campaign, index) => (
-                <div key={`${campaign.id}-${index}`} className="bg-white p-4 rounded-lg shadow-lg flex flex-col justify-between">
+              filteredCampaigns.map((campaign) => (
+                <div
+                  key={campaign.id}
+                  className="bg-white p-4 rounded-lg shadow-lg flex flex-col justify-between"
+                >
                   <div className="h-full">
-                  <p className="text-sm text-gray-500 mb-1">ID: {campaign.id}</p>
-                  <h3 className="text-lg font-semibold">{campaign.name}</h3>
-                  <p className="text-gray-600 mt-1 break-words overflow-hidden">
-                    รายละเอียด: {campaign.description.length > 100
-                      ? campaign.description.slice(0, 100) + "..."
-                      : campaign.description}
-                  </p>
-                  <p className="text-gray-600">นโยบาย: {campaign.policy || "-"}</p>
-                  <p className="text-gray-600">สถานะ: {campaign.status || "-"}</p>
-                  <p className="text-gray-600 mt-1">ขนาดโครงการ: {campaign.size ?? "-"}</p>
-                  <p className="text-gray-600">งบที่ได้รับ: {campaign.budget?.toLocaleString() ?? "-"} บาท</p>
-
-                  <p className="text-gray-400 mt-2">ความคืบหน้า: {campaign.progress} %</p>
-                      </div>
-                  <div className="mb-auto flex justify-between">
+                    <p className="text-sm text-gray-500 mb-1">ID: {campaign.id}</p>
+                    <h3 className="text-lg font-semibold">{campaign.name}</h3>
+                    <p className="text-gray-600 mt-1 break-words overflow-hidden">
+                      รายละเอียด:{" "}
+                      {campaign.description.length > 100
+                        ? campaign.description.slice(0, 100) + "..."
+                        : campaign.description}
+                    </p>
+                    <p className="text-gray-600">นโยบาย: {campaign.policy || "-"}</p>
+                    <p className="text-gray-600">สถานะ: {campaign.status || "-"}</p>
+                    <p className="text-gray-600">พื้นที่: {campaign.area ?? "-"}</p>
+                    <p className="text-gray-600">ผลกระทบ: {campaign.impact ?? "-"}</p>
+                    <p className="text-gray-600">ขนาดโครงการ: {campaign.size ?? "-"}</p>
+                    <p className="text-gray-600">งบที่ได้รับ: {campaign.budget?.toLocaleString() ?? "-"} บาท</p>
+                    <p className="text-gray-400 mt-2">ความคืบหน้า: {campaign.progress} %</p>
+                  </div>
+                  <div className="mb-auto flex justify-between mt-4">
                     <button
                       onClick={() => editCampaign(campaign.id)}
-                      className="bg-[#5D5A88] text-white px-3 py-1 rounded-md hover:bg-[#46426b]">
+                      className="bg-[#5D5A88] text-white px-3 py-1 rounded-md hover:bg-[#46426b]"
+                    >
                       ✏ แก้ไข
                     </button>
                     <button
                       onClick={() => deleteCampaign(campaign.id)}
-                      className="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-700">
+                      className="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-700"
+                    >
                       ❌ ลบ
                     </button>
                   </div>
@@ -157,7 +186,6 @@ export default function PRCampaignPage() {
             ) : (
               <p className="text-white text-center">ยังไม่มีโครงการในระบบ</p>
             )}
-
           </div>
         </main>
       </div>

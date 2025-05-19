@@ -10,9 +10,6 @@ import { useRouter } from "next/navigation";
 import { setDoc, doc, getDoc, collection, getDocs, deleteDoc } from "firebase/firestore";
 import { firestore } from "@/app/lib/firebase";
 
-
-
-
 export default function PRPolicyForm() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [policyName, setPolicyName] = useState<string>("");
@@ -34,6 +31,7 @@ export default function PRPolicyForm() {
 
   const [pictureUrls, setPictureUrls] = useState<string[]>([]);
   const [picturesToDelete, setPicturesToDelete] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
 
   const searchParams = useSearchParams();
@@ -44,6 +42,23 @@ export default function PRPolicyForm() {
   const previewUrls = useMemo(() => {
     return pictures.map((file) => URL.createObjectURL(file));
   }, [pictures]);
+
+  useEffect(() => {
+    if (!policyId) return;
+
+    const fetchPolicy = async () => {
+      const res = await fetch(`/api/pr-policy/${policyId}`);
+      const data = await res.json();
+
+      setPolicyName(data.name || "");
+      setPolicyCategory(data.category || "เศรษฐกิจ");
+      setPolicyDes(data.description || "");
+      // โหลด preview image/pdf ตาม id
+    };
+
+    fetchPolicy();
+  }, [policyId]);
+
 
 
   useEffect(() => {
@@ -70,12 +85,12 @@ export default function PRPolicyForm() {
 
         // ✅ Banner: .jpg หรือ .png
         try {
-          const jpgRef = ref(storage, `policy/banner/${cleanName}.jpg`);
+          const jpgRef = ref(storage, `policy/banner/${policyId}.jpg`);
           const jpgUrl = await getDownloadURL(jpgRef);
           setBannerPreviewUrl(jpgUrl);
         } catch {
           try {
-            const pngRef = ref(storage, `policy/banner/${cleanName}.png`);
+            const pngRef = ref(storage, `policy/banner/${policyId}.png`);
             const pngUrl = await getDownloadURL(pngRef);
             setBannerPreviewUrl(pngUrl);
           } catch { }
@@ -83,7 +98,7 @@ export default function PRPolicyForm() {
 
         // ✅ PDF
         try {
-          const pdfRef = ref(storage, `policy/reference/${cleanName}.pdf`);
+          const pdfRef = ref(storage, `policy/reference/${policyId}.pdf`);
           const pdfUrl = await getDownloadURL(pdfRef);
           setPdfPreviewUrl(pdfUrl);
         } catch { }
@@ -96,7 +111,7 @@ export default function PRPolicyForm() {
   }, [policyId]);
 
   useEffect(() => {
-    if (!policyName) return;
+    if (!policyId) return;
 
     // 🔹 โหลด achievement
     const fetchAchievements = async () => {
@@ -107,7 +122,7 @@ export default function PRPolicyForm() {
       ];
 
       for (const { key, label } of paths) {
-        const docRef = doc(firestore, "Policy", policyName, "achievement", label);
+        const docRef = doc(firestore, "Policy", policyId, "achievement", label);
         const snap = await getDoc(docRef);
         if (snap.exists()) {
           const data = snap.data();
@@ -120,7 +135,7 @@ export default function PRPolicyForm() {
 
     // 🔹 โหลด timeline
     const fetchTimeline = async () => {
-      const timelineRef = collection(firestore, "Policy", policyName, "sequence");
+      const timelineRef = collection(firestore, "Policy", policyId, "sequence");
       const snapshot = await getDocs(timelineRef);
 
       function thaiDateToISO(thaiDate: string): string {
@@ -165,24 +180,24 @@ export default function PRPolicyForm() {
 
     fetchAchievements();
     fetchTimeline();
-  }, [policyName]);
+  }, [policyId]);
 
-useEffect(() => {
-  if (policyBanner) {
-    const objectUrl = URL.createObjectURL(policyBanner);
-    setBannerPreviewUrl(objectUrl);
+  useEffect(() => {
+    if (policyBanner) {
+      const objectUrl = URL.createObjectURL(policyBanner);
+      setBannerPreviewUrl(objectUrl);
 
-    return () => URL.revokeObjectURL(objectUrl); // cleanup
-  }
-}, [policyBanner]);
+      return () => URL.revokeObjectURL(objectUrl); // cleanup
+    }
+  }, [policyBanner]);
 
 
   useEffect(() => {
-    if (!policyName.trim()) return;
+    if (!policyId) return;
 
     const loadPictures = async () => {
       try {
-        const folderRef = ref(storage, `policy/picture/${policyName.trim()}`);
+        const folderRef = ref(storage, `policy/picture/${policyId}`);
         const result = await listAll(folderRef);
         const urls = await Promise.all(
           result.items.map((itemRef) => getDownloadURL(itemRef))
@@ -194,7 +209,7 @@ useEffect(() => {
     };
 
     loadPictures();
-  }, [policyName]);
+  }, [policyId]);
 
   const handleFileChange = (
     event: React.ChangeEvent<HTMLInputElement>,
@@ -205,39 +220,14 @@ useEffect(() => {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    const cleanName = policyName.trim();
+    setIsSubmitting(true);
+    const isEditing = Boolean(policyId); // true = PUT, false = POST
+    const idToUse = policyId ?? ""; // สำหรับใช้กับ path firebase ถ้ามี
+
+
     let bannerUrl = "";
-    let pdfUploaded = false;
-
     try {
-      if (policyBanner) {
-        const bannerRef = ref(storage, `policy/banner/${cleanName}.jpg`);
-        await uploadBytes(bannerRef, policyBanner);
-        bannerUrl = await getDownloadURL(bannerRef);
-      }
-
-      if (policyPDF) {
-        const pdfRef = ref(storage, `policy/reference/${cleanName}.pdf`);
-        await uploadBytes(pdfRef, policyPDF);
-        pdfUploaded = true;
-      }
-
-      if (pictures && pictures.length > 0) {
-        const uploadPromises = pictures.map((file) => {
-          const uniqueName = `${Date.now()}_${file.name}`;
-          const picRef = ref(storage, `policy/picture/${cleanName}/${uniqueName}`);
-          return uploadBytes(picRef, file);
-        });
-
-        await Promise.all(uploadPromises);
-
-        // ✅ โหลดภาพใหม่หลังอัปโหลด
-        const folderRef = ref(storage, `policy/picture/${cleanName}`);
-        const result = await listAll(folderRef);
-        const urls = await Promise.all(result.items.map((itemRef) => getDownloadURL(itemRef)));
-        setPictureUrls(urls);
-      }
-
+      
 
       const payload = {
         ...(policyId && { id: policyId }),
@@ -249,77 +239,111 @@ useEffect(() => {
       };
 
       const res = await fetch("/api/prPolicyForm", {
-        method: policyId ? "PUT" : "POST",
+        method: isEditing ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      if (res.ok) {
-        // ✅ บันทึก achievement
-        await setDoc(doc(firestore, "Policy", cleanName, "achievement", "เชิงกระบวนการ"), {
-          name: "เชิงกระบวนการ",
-          description: achievementProcess,
-        });
-
-        await setDoc(doc(firestore, "Policy", cleanName, "achievement", "เชิงการเมือง"), {
-          name: "เชิงการเมือง",
-          description: achievementPolicy,
-        });
-
-        await setDoc(doc(firestore, "Policy", cleanName, "achievement", "เชิงโครงการ"), {
-          name: "เชิงโครงการ",
-          description: achievementProject,
-        });
-
-        const timelineRef = collection(firestore, "Policy", cleanName, "sequence");
-        const existingSnapshot = await getDocs(timelineRef);
-        const existingIds = existingSnapshot.docs.map((doc) => doc.id);
-        const currentIds = timelineItems.map((item) => item.id).filter(Boolean);
-
-        const deletedIds = existingIds.filter((id) => !currentIds.includes(id));
-        for (const id of deletedIds) {
-          await deleteDoc(doc(firestore, "Policy", cleanName, "sequence", id));
-        }
-
-        // ✅ บันทึก timeline
-        for (const item of timelineItems) {
-          if (item.id) {
-            // ✅ ถ้าชื่อใหม่ไม่เท่าเดิม → ลบของเก่าก่อน
-            if (item.id !== item.date.trim()) {
-              await deleteDoc(doc(firestore, "Policy", policyName, "sequence", item.id));
-            }
-          }
-
-          // ✅ เซฟเข้า document ชื่อใหม่ (ใช้ date เป็น id ใหม่)
-          await setDoc(doc(firestore, "Policy", policyName, "sequence", item.date.trim()), {
-            name: item.name,
-            date: item.date,
-            description: item.description,
-          });
-        }
-
-        // ✅ ลบภาพเพิ่มเติมที่ถูกเลือกไว้
-        for (const path of picturesToDelete) {
-          try {
-            const fileRef = ref(storage, path);
-            await deleteObject(fileRef);
-          } catch (err) {
-            console.warn("⚠️ ลบรูปไม่สำเร็จ:", err);
-          }
-        }
-
-
-        alert("✅ บันทึกนโยบายสำเร็จ");
-        router.replace("/prPolicy");
-      } else {
+      if (!res.ok) {
         const text = await res.text();
         alert("❌ บันทึกไม่สำเร็จ: " + text);
+        return;
       }
+
+      const { id: newId } = await res.json();
+      const idUsed = isEditing ? policyId! : newId;
+      const idStr = idUsed.toString();
+
+      if (policyBanner) {
+  const bannerRef = ref(storage, `policy/banner/${idUsed}.jpg`);
+  await uploadBytes(bannerRef, policyBanner);
+  bannerUrl = await getDownloadURL(bannerRef);
+}
+
+if (policyPDF) {
+  const pdfRef = ref(storage, `policy/reference/${idUsed}.pdf`);
+  await uploadBytes(pdfRef, policyPDF);
+}
+      // ✅ ใช้ idUsed สำหรับ Firebase Storage และ Firestore
+      await setDoc(doc(firestore, "Policy", idStr, "achievement", "เชิงกระบวนการ"), {
+        name: "เชิงกระบวนการ",
+        description: achievementProcess,
+      });
+
+      if (pictures.length > 0) {
+        const uploadPromises = pictures.map((file) => {
+          const uniqueName = `${Date.now()}_${file.name}`;
+          const picRef = ref(storage, `policy/picture/${idUsed}/${uniqueName}`);
+          return uploadBytes(picRef, file);
+        });
+
+        await Promise.all(uploadPromises);
+
+        const folderRef = ref(storage, `policy/picture/${idUsed}`);
+        const result = await listAll(folderRef);
+        const urls = await Promise.all(result.items.map((itemRef) => getDownloadURL(itemRef)));
+        setPictureUrls(urls);
+      }
+
+      // ✅ อัปเดต achievement ทั้ง 3
+      await Promise.all([
+        setDoc(doc(firestore, "Policy", idStr, "achievement", "เชิงกระบวนการ"), {
+          name: "เชิงกระบวนการ",
+          description: achievementProcess,
+        }),
+        setDoc(doc(firestore, "Policy", idStr, "achievement", "เชิงการเมือง"), {
+          name: "เชิงการเมือง",
+          description: achievementPolicy,
+        }),
+        setDoc(doc(firestore, "Policy", idStr, "achievement", "เชิงโครงการ"), {
+          name: "เชิงโครงการ",
+          description: achievementProject,
+        }),
+      ]);
+
+      // ✅ อัปเดต timeline
+      const timelineRef = collection(firestore, "Policy", idStr, "sequence");
+      const existingSnapshot = await getDocs(timelineRef);
+      const existingIds = existingSnapshot.docs.map((doc) => doc.id);
+      const currentIds = timelineItems.map((item) => item.id).filter((id) => id != null);
+
+      const deletedIds = existingIds.filter((id) => !currentIds.includes(id));
+      for (const id of deletedIds) {
+        await deleteDoc(doc(firestore, "Policy", idUsed, "sequence", id));
+      }
+
+      for (const item of timelineItems) {
+        if (item.id && item.id !== item.date.trim()) {
+          await deleteDoc(doc(firestore, "Policy", idUsed, "sequence", item.id));
+        }
+
+        await setDoc(doc(firestore, "Policy", idStr, "sequence", item.date.trim()), {
+          name: item.name,
+          date: item.date,
+          description: item.description,
+        });
+      }
+
+      // ✅ ลบภาพที่ต้องลบ
+      for (const path of picturesToDelete) {
+        try {
+          const fileRef = ref(storage, path);
+          await deleteObject(fileRef);
+        } catch (err) {
+          console.warn("⚠️ ลบรูปไม่สำเร็จ:", err);
+        }
+      }
+
+      alert("✅ บันทึกนโยบายสำเร็จ");
+      router.replace("/prPolicy");
     } catch (err) {
       console.error("Error saving policy:", err);
       alert("❌ เกิดข้อผิดพลาดในการบันทึก");
+    } finally {
+      setIsSubmitting(false); // ✅ จบบันทึก
     }
   };
+
 
   return (
     <div className="min-h-screen bg-[#9795B5] flex">
@@ -566,9 +590,14 @@ useEffect(() => {
                 </a>
               )}
 
-              <button type="submit" className="w-full bg-[#5D5A88] text-white p-3 rounded-md hover:bg-[#46426b] mt-4">
-                บันทึก
+              <button
+                type="submit"
+                className={`w-full p-3 rounded-md mt-4 text-white ${isSubmitting ? "bg-gray-400 cursor-not-allowed" : "bg-[#5D5A88] hover:bg-[#46426b]"}`}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? "กำลังบันทึก..." : "บันทึก"}
               </button>
+
             </form>
           </div>
         </main>

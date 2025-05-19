@@ -4,10 +4,9 @@ import driver from "@/app/lib/neo4j";
 
 export async function GET(
   req: NextRequest,
-  context: { params: { region: string } }
+  context: { params: Record<string, string> }
 ) {
-  const { params } = context;
-  const region = decodeURIComponent(params.region); // ✅ ใช้หลังจากแยก context
+  const region = decodeURIComponent((await context.params).region);
   const session = driver.session();
 
   try {

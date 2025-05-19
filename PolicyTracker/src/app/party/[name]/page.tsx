@@ -129,7 +129,13 @@ const params = useParams();
       <div className="font-prompt">
          {isClient ? (
           <>
-        <div className="flex flex-row bg-[#9795B5] mb-10">
+        <div className="bg-cover bg-center"
+        style={{
+        backgroundImage: "url('/bg/พรรค.png')"
+      }}
+       >
+        <div className="flex flex-row  mb-10 ">
+       
           <div className="grid grid-rows-3 p-12 w-2/3">
             <div className="flex gap-20 items-center mb-10">
               <h1 className="text-white text-[4rem] m-0 font-bold">{name.startsWith("พรรค") ? name : `พรรค${name}`}</h1>
@@ -151,11 +157,17 @@ const params = useParams();
                   เว็บไซต์พรรค
                 </button>
               </a>
+
+              <a href={`/partycategory/${encodeURIComponent(name)}`}>
+                <button className="w-[200px] px-4 py-3 bg-white mr-4 text-[#5D5A88] text-[20px] rounded-lg">
+                  นโยบายพรรค
+                </button>
+              </a>
             </div>
           </div>
 
           {/* หัวหน้าพรรค */}
-          <div className="flex flex-col items-center justify-center w-1/3 bg-[#827FAF] p-8 rounded-lg shadow-md gap-10">
+          <div className="flex flex-col items-center justify-center w-1/3  p-8 rounded-lg shadow-md gap-10">
             {leader ? (
               <>
                 <h2 className="text-white text-center text-[2rem] font-bold">{leader.Role}</h2>
@@ -182,6 +194,7 @@ const params = useParams();
               <p className="text-white text-center">ไม่พบข้อมูลหัวหน้าพรรค</p>
             )}
           </div>
+        </div>
         </div>
 
         {/* สมาชิกพรรค */}

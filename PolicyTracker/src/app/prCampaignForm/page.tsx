@@ -8,9 +8,16 @@ import { storage } from "@/app/lib/firebase";
 import PRSidebar from "@/app/components/PRSidebar";
 
 export default function PRCampaignForm() {
+
+  interface PolicyOption {
+  id: string;
+  name: string;
+}
+
   const [menuOpen, setMenuOpen] = useState(false);
   const [campaignName, setCampaignName] = useState("");
   const [campaignDes, setCampaignDes] = useState("");
+  const [policyId, setPolicyId] = useState<string>("");
   const [policyName, setPolicyName] = useState("");
   const [campaignStatus, setCampaignStatus] = useState("เริ่มโครงการ");
   const [campaignBudget, setCampaignBudget] = useState("");
@@ -20,19 +27,23 @@ export default function PRCampaignForm() {
   const [bannerPreviewUrl, setBannerPreviewUrl] = useState<string | null>(null);
   const [refPreviewUrl, setRefPreviewUrl] = useState<string | null>(null);
   const [partyName, setPartyName] = useState("ไม่ทราบชื่อพรรค");
-  const [policies, setPolicies] = useState<string[]>([]);
+  const [policies, setPolicies] = useState<PolicyOption[]>([]);
   const [area, setArea] = useState("เขตเดียว");
   const [impact, setImpact] = useState("ต่ำ");
   const [size, setSize] = useState("เล็ก");
   const [campaignPictures, setCampaignPictures] = useState<File[]>([]);
   const [uploadedPictureUrls, setUploadedPictureUrls] = useState<string[]>([]);
   const [picturesToDelete, setPicturesToDelete] = useState<string[]>([]);
+  const [partyId, setPartyId] = useState<number | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
 
   const searchParams = useSearchParams();
   const campaignId = searchParams.get("campaign_id");
 
   const router = useRouter();
+
+  
 
   useEffect(() => {
     type Area = "เขตเดียว" | "หลายเขต" | "ทั่วประเทศ";
@@ -55,32 +66,34 @@ export default function PRCampaignForm() {
     setSize(mapSize[key] || "เล็ก");
   }, [area, impact]);
 
+useEffect(() => {
+  const storedId = localStorage.getItem("partyId");
+if (storedId) {
+  setPartyId(Number(storedId)); // 🟢 แปลงเป็นเลข
+  fetch(`/api/prCampaignForm?party_id=${storedId}`)
+    .then((res) => res.json())
+    .then((data) => {
+      let list = data ?? [];
+      if (!list.some((p: { name: string }) => p.name === "โครงการพิเศษ")) {
+        list = [{ id: "special", name: "โครงการพิเศษ" }, ...list];
+      }
+      setPolicies(list);
+    });
+}
+
+}, []);
+
 
   useEffect(() => {
-    const stored = localStorage.getItem("partyName");
-    if (stored) {
-      setPartyName(stored);
-      fetch(`/api/prCampaignForm?party=${encodeURIComponent(stored)}`)
-        .then((res) => res.json())
-        .then((data) => {
-          const unique = Array.from(new Set(["โครงการพิเศษ", ...(data.policies || [])]));
-          setPolicies(unique);
-        });
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!campaignId) return;
+    if (!campaignId || isNaN(Number(campaignId))) return;
 
     const fetchCampaign = async () => {
       const res = await fetch(`/api/pr-campaign/${campaignId}`);
       const data = await res.json();
 
-
-
       setCampaignName(data.name || "");
       setCampaignDes(data.description || "");
-      setPolicyName(data.policy || "");
+      setPolicyName(data.policy_id ? `${data.policy_id}|${data.policy}` : "");
       setCampaignStatus(data.status || "เริ่มโครงการ");
       setCampaignBudget(data.budget?.toString() || "");
       setArea(data.area || "เขตเดียว");
@@ -88,26 +101,25 @@ export default function PRCampaignForm() {
       setSize(data.size || "เล็ก");
       setExpenses(data.expenses || [{ description: "", amount: "" }]);
 
-      // preview
-      const cleanName = data.name?.trim();
-      if (cleanName) {
-        try {
-          const bannerRef = ref(storage, `campaign/banner/${cleanName}.jpg`);
-          setBannerPreviewUrl(await getDownloadURL(bannerRef));
-        } catch { }
-        try {
-          const pdfRef = ref(storage, `campaign/reference/${cleanName}.pdf`);
-          setRefPreviewUrl(await getDownloadURL(pdfRef));
-        } catch { }
-        try {
-          const folderRef = ref(storage, `campaign/picture/${cleanName}`);
-          const listResult = await listAll(folderRef);
-          const urls = await Promise.all(listResult.items.map((item) => getDownloadURL(item)));
-          setUploadedPictureUrls(urls);
-        } catch {
-          console.warn("ไม่พบภาพเพิ่มเติม");
-        }
-      }
+      if (!data.isSpecial) {
+      setPolicyId(data.policyId?.toString() || "");
+    } else {
+      setPolicyId("special");
+    }
+
+      try {
+        setBannerPreviewUrl(await getDownloadURL(ref(storage, `campaign/banner/${campaignId}.jpg`)));
+      } catch {}
+
+      try {
+        setRefPreviewUrl(await getDownloadURL(ref(storage, `campaign/reference/${campaignId}.pdf`)));
+      } catch {}
+
+      try {
+        const listResult = await listAll(ref(storage, `campaign/picture/${campaignId}`));
+        const urls = await Promise.all(listResult.items.map((item) => getDownloadURL(item)));
+        setUploadedPictureUrls(urls);
+      } catch {}
     };
 
     fetchCampaign();
@@ -134,73 +146,73 @@ export default function PRCampaignForm() {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    const cleanName = campaignName.trim();
-    let bannerUrl = "";
+     setIsSubmitting(true);
+    const isSpecial = policyId === "special";
+    let finalId: string | null = campaignId;
 
     try {
-      if (campaignBanner) {
-        const bannerRef = ref(storage, `campaign/banner/${cleanName}.jpg`);
-        await uploadBytes(bannerRef, campaignBanner);
-        bannerUrl = await getDownloadURL(bannerRef);
-      }
-
-      if (campaignRef) {
-        const refFile = ref(storage, `campaign/reference/${cleanName}.pdf`);
-        await uploadBytes(refFile, campaignRef);
-      }
-
       const payload = {
         ...(campaignId && !isNaN(Number(campaignId)) && { id: Number(campaignId) }),
         name: campaignName,
         description: campaignDes,
         status: campaignStatus,
-         policy: "โครงการพิเศษ",
-  party: partyName,
+        policy: isSpecial ? "โครงการพิเศษ" : policyName,
+        policyId: isSpecial ? null : Number(policyId),
+         partyId: Number(partyId),
         budget: Number(campaignBudget),
         expenses: expenses.map((e) => ({ ...e, amount: Number(e.amount) })),
-        banner: bannerUrl,
+        banner: "",
         partyName,
         area,
         impact,
         size,
       };
 
-      const res = await fetch(campaignId ? `/api/pr-campaign/${campaignId}` : `/api/prCampaignForm`, {
+    const res = await fetch(campaignId ? `/api/pr-campaign/${campaignId}` : `/api/prCampaignForm`, {
         method: campaignId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      // 🔁 ลบภาพที่เลือกไว้
+      const result = await res.json();
+      finalId = campaignId || result.id?.toString();
+      if (!res.ok || !finalId) {
+        alert("❌ ไม่สามารถบันทึกข้อมูลได้");
+        return;
+      }
+
+      // 📤 อัปโหลดไฟล์หลังรู้ finalId
+      if (campaignBanner) {
+        await uploadBytes(ref(storage, `campaign/banner/${finalId}.jpg`), campaignBanner);
+      }
+
+      if (campaignRef) {
+        await uploadBytes(ref(storage, `campaign/reference/${finalId}.pdf`), campaignRef);
+      }
+
       for (const path of picturesToDelete) {
         try {
-          const fileRef = ref(storage, path);
-          await deleteObject(fileRef);
+          await deleteObject(ref(storage, path));
         } catch (err) {
-          console.warn("ลบรูปไม่สำเร็จ:", err);
+          console.warn("⚠️ ลบรูปไม่สำเร็จ:", err);
         }
       }
 
-      // ✅ อัปโหลดภาพใหม่
-      for (const file of campaignPictures) {
+    for (const file of campaignPictures) {
         const uniqueName = `${Date.now()}_${file.name}`;
-        const imageRef = ref(storage, `campaign/picture/${cleanName}/${uniqueName}`);
-        await uploadBytes(imageRef, file);
+        await uploadBytes(ref(storage, `campaign/picture/${finalId}/${uniqueName}`), file);
       }
 
-
-      if (res.ok) {
-        alert(campaignId ? "✅ แก้ไขโครงการสำเร็จ" : "✅ สร้างโครงการสำเร็จ");
-        router.push("/prCampaign");
-      } else {
-        const text = await res.text();
-        alert("❌ ไม่สำเร็จ: " + text);
-      }
+      alert(campaignId ? "✅ แก้ไขโครงการสำเร็จ" : "✅ สร้างโครงการสำเร็จ");
+      router.push("/prCampaign");
     } catch (err) {
-      console.error("Error saving campaign:", err);
+      console.error("❌ Error saving campaign:", err);
       alert("❌ เกิดข้อผิดพลาดในการบันทึก");
-    }
+      } finally {
+    setIsSubmitting(false); // ✅ หยุดโหลดไม่ว่าจะสำเร็จหรือ error
+  } 
   };
+
 
   return (
     <div className="min-h-screen bg-[#9795B5] flex">
@@ -221,10 +233,29 @@ export default function PRCampaignForm() {
               <textarea value={campaignDes} onChange={(e) => setCampaignDes(e.target.value)} rows={5} required className="w-full p-2 border border-gray-300 rounded-md" />
 
               <label className="block font-bold">นโยบายที่เกี่ยวข้อง:</label>
-              <select value={policyName} onChange={(e) => setPolicyName(e.target.value)} required className="w-full p-2 border border-gray-300 rounded-md">
-                <option value="">-- เลือกนโยบาย --</option>
-                {policies.map((p) => <option key={p} value={p}>{p}</option>)}
-              </select>
+              <select
+  value={policyId}
+  onChange={(e) => {
+    const selected = e.target.value;
+    setPolicyId(selected);
+    if (selected === "special") {
+      setPolicyName("โครงการพิเศษ");
+    } else {
+      const found = policies.find((p) => p.id.toString() === selected);
+      setPolicyName(found?.name || "");
+    }
+  }}
+  required
+  className="w-full p-2 border border-gray-300 rounded-md"
+>
+  <option value="">-- เลือกนโยบาย --</option>
+  {policies.map((p) => (
+    <option key={p.id} value={p.id}>
+      {p.name}
+    </option>
+  ))}
+</select>
+
 
               <label className="block font-bold">สถานะโครงการ:</label>
               <select value={campaignStatus} onChange={(e) => setCampaignStatus(e.target.value)} required className="w-full p-2 border border-gray-300 rounded-md">

@@ -6,34 +6,32 @@ export async function POST(req: NextRequest) {
   const session = driver.session();
 
   try {
-    const body = await req.json();
-    const partyName = body.partyName;
+    const { partyName } = await req.json();
 
     if (!partyName) {
       return NextResponse.json({ error: "Missing partyName" }, { status: 400 });
     }
 
-    // ✅ 1. ดึงนโยบายจาก Neo4j
-    const query = `
+    const result = await session.run(
+      `
       MATCH (p:Policy)-[:BELONGS_TO]->(party:Party {name: $partyName})
       OPTIONAL MATCH (p)-[:HAS_CATEGORY]->(c:Category)
       RETURN p.id AS id, p.name AS policy_name, p.description AS policy_description, c.name AS policy_category
-    `;
+      `,
+      { partyName }
+    );
 
-    const result = await session.run(query, { partyName });
+    const neo4jPolicies = result.records
+      .map((record) => ({
+        id: record.get("id")?.toNumber?.() ?? null,
+        policy_name: record.get("policy_name"),
+        policy_description: record.get("policy_description") || "-",
+        policy_category: record.get("policy_category") || "-",
+      }))
+      .filter((p) => p.id !== null);
 
-    const neo4jPolicies = result.records.map((record) => ({
-      id: typeof record.get("id")?.toNumber === "function" ? record.get("id").toNumber() : null,
-      policy_name: record.get("policy_name"),
-      policy_description: record.get("policy_description") || "-",
-      policy_category: record.get("policy_category") || "-",
-    }));
+    const ids = neo4jPolicies.map((p) => p.id);
 
-    const ids = neo4jPolicies
-      .map((p) => p.id)
-      .filter((id) => typeof id === "number" && id <= 2147483647);
-
-    // ✅ 2. ดึงข้อมูลเสริมจาก PostgreSQL
     let pgPolicies: Record<number, any> = {};
     if (ids.length > 0) {
       const pgResult = await pg.query(
@@ -47,7 +45,6 @@ export async function POST(req: NextRequest) {
       }, {} as Record<number, any>);
     }
 
-    // ✅ 3. รวมข้อมูล
     const combined = neo4jPolicies.map((p) => ({
       id: p.id,
       name: p.policy_name,
@@ -59,13 +56,12 @@ export async function POST(req: NextRequest) {
     }));
 
     const sorted = combined.sort((a, b) => {
-  const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
-  const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
-  return bTime - aTime; // เรียงจากใหม่ → เก่า
-});
+      const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return bTime - aTime;
+    });
 
-
-    return NextResponse.json(combined);
+    return NextResponse.json(sorted);
   } catch (error) {
     console.error("❌ Error fetching policies:", error);
     return NextResponse.json({ error: "Something went wrong" }, { status: 500 });

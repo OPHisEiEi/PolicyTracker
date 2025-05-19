@@ -8,6 +8,12 @@ body {
   @apply font-prompt;
 }
 
+a {
+  text-decoration: none !important;
+  color: inherit;
+} 
+
+
 
 /* globals.css */
 .scrollbar-hidden {

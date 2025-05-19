@@ -4,7 +4,8 @@ import { useRouter } from "next/navigation";
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import ThaiMap from "../components/ThaiMapComponent";
-import { provinceNameMap, provinceToRegion} from "@/app/lib/provinceRegions";
+import { provinceNameMap, provinceToRegion } from "@/app/lib/provinceRegions";
+import { ArrowLeft } from "lucide-react";
 
 interface EventData {
   name: string;
@@ -65,15 +66,15 @@ export default function EventPage() {
   const handleProvinceClick = async (provinceCode: string) => {
     const provinceName = provinceNameMap[provinceCode]; // แปลงรหัสจังหวัดเป็นชื่อ เช่น "กรุงเทพมหานคร"
     const regionName = selectedRegion !== "ทั้งหมด" ? selectedRegion : "";
-  
+
     setSelectedProvince(provinceCode); // ใช้สำหรับแสดงชื่อจังหวัด และเก็บ state
     setLoading(true);
-  
+
     try {
       const url = regionName
         ? `/api/event/province/${encodeURIComponent(provinceName)}/region/${encodeURIComponent(regionName)}`
         : `/api/event/province/${encodeURIComponent(provinceName)}`;
-  
+
       const res = await fetch(url);
       const data = await res.json();
       setEvents(data);
@@ -83,9 +84,9 @@ export default function EventPage() {
       setLoading(false);
     }
   };
-  
-  
-  
+
+
+
 
   const fetchEventsByProvince = async (provinceCode: string) => {
     setLoading(true);
@@ -99,7 +100,7 @@ export default function EventPage() {
       setLoading(false);
     }
   };
-  
+
 
   useEffect(() => {
     fetchEvents(selectedRegion);
@@ -110,27 +111,35 @@ export default function EventPage() {
       fetchEvents(selectedRegion);
     }
   }, [selectedProvince]);
-  
 
-  
+
+
   return (
-    <div className="min-h-screen bg-[#9795B5] font-['Prompt']">
+    <div className="min-h-screen flex flex-col justify-between font-['Prompt'] bg-center bg-cover" style={{ backgroundImage: "url('/bg/แผนที่.png')" }}>
       <Navbar />
 
-    {/* ✅ ปุ่มย้อนกลับแสดงเฉพาะเมื่อเลือกจังหวัด */}
-    {selectedProvince && (
-      <div className="w-full flex justify-start px-6 pt-6">
-        <button
-          className="text-white underline text-sm"
-          onClick={() => setSelectedProvince(null)}
-        >
-          ← ย้อนกลับ
-        </button>
-      </div>
-    )}
-      
-    {/* ✅ หัวข้อและ filter map แสดงเฉพาะเมื่อยังไม่เลือกจังหวัด */}
-    {!selectedProvince && (
+      {/* ✅ ปุ่มย้อนกลับแสดงเฉพาะเมื่อเลือกจังหวัด */}
+      {selectedProvince && (
+        <div className="w-full flex justify-start px-6 pt-6">
+          <button
+            onClick={() => setSelectedProvince(null)}
+            className="
+    inline-flex items-center gap-2
+    px-4 py-2
+    bg-gray-200 text-gray-800
+    font-medium rounded-lg shadow-sm
+    hover:bg-gray-300
+    focus:outline-none focus:ring-2 focus:ring-gray-400
+    transition
+  "
+          >
+            <ArrowLeft size={16} /> ย้อนกลับ
+          </button>
+        </div>
+      )}
+
+      {/* ✅ หัวข้อและ filter map แสดงเฉพาะเมื่อยังไม่เลือกจังหวัด */}
+      {!selectedProvince && (
         <div className="text-center mt-10">
           <h1 className="text-white text-4xl font-bold mb-4">
             {selectedRegion !== "ทั้งหมด"
@@ -155,27 +164,27 @@ export default function EventPage() {
             </select>
           </div>
 
-        {/* Thailand Map */}
-        <div className="flex justify-center h-[700px] relative">
-          <ThaiMap
-            selectedRegion={selectedRegion}
-            selectedProvince={selectedProvince}
-            handleRegionClick={(regionId) => {
-              setSelectedRegion(regionId);
-              setSelectedProvince("");
-            }}
-            handleProvinceClick={handleProvinceClick}
-            handleHover={(id) => {
-              setHoveredRegion(id);
-            }}
-            setHoveredRegion={setHoveredRegion}
-          />
+          {/* Thailand Map */}
+          <div className="flex justify-center h-[700px] relative">
+            <ThaiMap
+              selectedRegion={selectedRegion}
+              selectedProvince={selectedProvince}
+              handleRegionClick={(regionId) => {
+                setSelectedRegion(regionId);
+                setSelectedProvince("");
+              }}
+              handleProvinceClick={handleProvinceClick}
+              handleHover={(id) => {
+                setHoveredRegion(id);
+              }}
+              setHoveredRegion={setHoveredRegion}
+            />
+          </div>
         </div>
-      </div>
-    )}
+      )}
 
       {/* ✅ ส่วนแสดงกิจกรรม */}
-      <div className="w-[90%] mx-auto mt-10">
+      <div className="w-[90%] mx-auto my-10">
         {loading ? (
           <div className="text-center text-white py-10">
             กำลังโหลดข้อมูลกิจกรรม...
@@ -192,16 +201,16 @@ export default function EventPage() {
                 <ThaiMap
                   selectedProvince={selectedProvince}
                   selectedRegion={selectedRegion}
-                  handleRegionClick={() => {}}
-                  handleProvinceClick={() => {}}
-                  handleHover={() => {}}
-                  setHoveredRegion={() => {}}
+                  handleRegionClick={() => { }}
+                  handleProvinceClick={() => { }}
+                  handleHover={() => { }}
+                  setHoveredRegion={() => { }}
                 />
               </div>
-          </div>
+            </div>
 
-    {/* ฝั่งขวา: รายการกิจกรรม */}
-    <div className="lg:w-[60%] bg-white p-6 rounded-xl shadow">
+            {/* ฝั่งขวา: รายการกิจกรรม */}
+            <div className="lg:w-[60%] bg-white p-6 rounded-xl shadow">
               <h3 className="text-[#5D5A88] font-bold text-lg mb-4">
                 มีกิจกรรมทั้งหมด {events.length} กิจกรรม
               </h3>
@@ -209,8 +218,8 @@ export default function EventPage() {
                 {events.map((event, index) => {
                   const partyImage = event.party
                     ? `https://firebasestorage.googleapis.com/v0/b/policy-tracker-kp.firebasestorage.app/o/party%2Flogo%2F${encodeURIComponent(
-                        event.party
-                      )}.png?alt=media`
+                      event.party
+                    )}.png?alt=media`
                     : "/default-logo.png";
                   return (
                     <div
@@ -251,56 +260,56 @@ export default function EventPage() {
         ) : (
           // ✅ layout ปกติเมื่อยังไม่เลือกจังหวัด
           <div className="bg-white p-5 text-[#3f3c62] rounded-xl shadow">
-          <div className="flex flex-wrap gap-6 justify-center">
-            {events.map((event, index) => {
-              const partyImage = event.party
-                ? `https://firebasestorage.googleapis.com/v0/b/policy-tracker-kp.firebasestorage.app/o/party%2Flogo%2F${encodeURIComponent(
+            <div className="flex flex-wrap gap-6 justify-center">
+              {events.map((event, index) => {
+                const partyImage = event.party
+                  ? `https://firebasestorage.googleapis.com/v0/b/policy-tracker-kp.firebasestorage.app/o/party%2Flogo%2F${encodeURIComponent(
                     event.party
                   )}.png?alt=media`
-                : "/default-logo.png";
-              return (
-                <div
-                  key={index}
-                  className="w-[450px] h-[300px] bg-white shadow-md rounded-lg transition-transform duration-300 border-2 border-[#5D5A88] hover:scale-105 p-4 flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="flex justify-between items-start">
-                      <h3 className="font-bold text-lg mb-1">
-                        {event.name}
-                      </h3>
-                      <img
-                        className="w-10 h-10 object-contain"
-                        src={partyImage}
-                        alt={`โลโก้ของ ${event.party || "ไม่ทราบพรรค"}`}
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src =
-                            "/default-logo.png";
-                        }}
-                      />
+                  : "/default-logo.png";
+                return (
+                  <div
+                    key={index}
+                    className="w-[450px] h-[300px] bg-white shadow-md rounded-lg transition-transform duration-300 border-2 border-[#5D5A88] hover:scale-105 p-4 flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex justify-between items-start">
+                        <h3 className="font-bold text-lg mb-1">
+                          {event.name}
+                        </h3>
+                        <img
+                          className="w-10 h-10 object-contain"
+                          src={partyImage}
+                          alt={`โลโก้ของ ${event.party || "ไม่ทราบพรรค"}`}
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src =
+                              "/default-logo.png";
+                          }}
+                        />
+                      </div>
+                      <p className="text-gray-600 text-sm line-clamp-3">
+                        {event.description}
+                      </p>
+                      <p className="text-sm mt-2">📅 {event.date}</p>
+                      <p className="text-sm">📍 {event.location}</p>
                     </div>
-                    <p className="text-gray-600 text-sm line-clamp-3">
-                      {event.description}
-                    </p>
-                    <p className="text-sm mt-2">📅 {event.date}</p>
-                    <p className="text-sm">📍 {event.location}</p>
+                    <div className="flex justify-end mt-4">
+                      <button
+                        onClick={() =>
+                          router.push(
+                            `/eventdetail/${encodeURIComponent(event.name)}`
+                          )
+                        }
+                        className="text-[#5D5A88] font-semibold hover:underline"
+                      >
+                        ดูเพิ่มเติม
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex justify-end mt-4">
-                    <button
-                      onClick={() =>
-                        router.push(
-                          `/eventdetail/${encodeURIComponent(event.name)}`
-                        )
-                      }
-                      className="text-[#5D5A88] font-semibold hover:underline"
-                    >
-                      ดูเพิ่มเติม
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
         )}
       </div>
 

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, firestore } from "@/app/lib/firebase";
+import Navbar from "@/app/components/Navbar";
 
 
 export default function LoginPage() {
@@ -48,43 +49,60 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#9795B5]">
-      <form onSubmit={handleLogin} className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
-        <h1 className="text-2xl font-bold mb-6 text-[#5D5A88] text-center">เข้าสู่ระบบ</h1>
+    <div
+      className="min-h-screen flex flex-col bg-cover bg-center"
+      style={{ backgroundImage: "url('/bg/หัวข้อ.png')" }}
+    >
+      {/* Navbar ติดบนสุด */}
+      <Navbar />
 
-        <input
-          type="email"
-          placeholder="อีเมล"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="w-full p-2 mb-4 border rounded"
-          required
-        />
+      {/* เนื้อหา login จะแสดงตรงกลาง */}
+      <div className="flex flex-1 items-center justify-center p-4">
+        <div className="flex w-full max-w-4xl bg-white rounded-lg shadow-lg overflow-hidden">
+          {/* ฝั่งซ้าย: รูป */}
+          <div
+            className="hidden sm:block w-1/2 bg-cover bg-center"
+            style={{ backgroundImage: "url('/bg/ธงชาติ.jpg')" }}
+          />
 
-        <input
-          type="password"
-          placeholder="รหัสผ่าน"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full p-2 mb-4 border rounded"
-          required
-        />
-
-        {errorMsg && <p className="text-red-500 mb-4">{errorMsg}</p>}
-
-        <button
-          type="submit"
-          className="w-full bg-[#5D5A88] text-white p-2 rounded hover:bg-[#46426b]"
-        >
-          เข้าสู่ระบบ
-        </button>
-        <div className="pt-3 text-center">
-        <a href="/">กลับไปหน้าหลัก</a>
+          {/* ฝั่งขวา: ฟอร์ม */}
+          <div className="w-full sm:w-1/2 p-8">
+            <h1 className="text-2xl font-bold mb-6 text-[#5D5A88] text-center">
+              เข้าสู่ระบบ
+            </h1>
+            <form onSubmit={handleLogin} className="space-y-4">
+              <input
+                type="email"
+                placeholder="อีเมล"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full p-2 border rounded"
+                required
+              />
+              <input
+                type="password"
+                placeholder="รหัสผ่าน"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full p-2 border rounded"
+                required
+              />
+              {errorMsg && <p className="text-red-500">{errorMsg}</p>}
+              <button
+                type="submit"
+                className="w-full bg-[#5D5A88] text-white p-2 rounded hover:bg-[#46426b] transition"
+              >
+                เข้าสู่ระบบ
+              </button>
+            </form>
+            <div className="pt-4 text-center">
+              <a href="/" className="text-sm text-gray-600 hover:underline">
+                กลับไปหน้าหลัก
+              </a>
+            </div>
+          </div>
         </div>
-
-        
-
-      </form>
+      </div>
     </div>
   );
 }

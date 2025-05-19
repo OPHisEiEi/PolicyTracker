@@ -7,11 +7,12 @@ import Footer from "@/app/components/Footer";
 import { firestore } from "@/app/lib/firebase";
 import Step from "@/app/components/step";
 import { useRouter } from "next/navigation";
-import { storage, ref, getDownloadURL } from "@/app/lib/firebase";
+import { storage, } from "@/app/lib/firebase";
+import { getDownloadURL, ref } from "firebase/storage";
 import { doc, getDoc, collection, onSnapshot } from "firebase/firestore";
 import { Heart } from "lucide-react";
 import { ArrowLeft } from "lucide-react";
-import {  listAll } from "firebase/storage";
+import { listAll, } from "firebase/storage";
 
 interface TimelineItem {
   date: string;
@@ -70,9 +71,26 @@ const CampaignDetailPage = () => {
   const [bannerUrl, setBannerUrl] = useState<string>("");
   const [policy, setPolicy] = useState<{ name: string; description: string; status: string } | null>(null);
   const [relatedEvents, setRelatedEvents] = useState<{ name: string; description: string }[]>([]);
-    const [galleryUrls, setGalleryUrls] = useState<string[]>([]);
-    const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
+  const [galleryUrls, setGalleryUrls] = useState<string[]>([]);
+  const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<string>("");
 
+  useEffect(() => {
+    const loadPdfUrl = async () => {
+      if (!name) return;
+
+      try {
+        const pdfRef = ref(storage, `campaign/reference/${name}.pdf`);
+        const url = await getDownloadURL(pdfRef);
+        setPdfUrl(url);
+      } catch (err) {
+        console.warn("ไม่พบ PDF สำหรับโครงการนี้");
+        setPdfUrl(""); // หรือ null
+      }
+    };
+
+    loadPdfUrl();
+  }, [name]);
 
   useEffect(() => {
     console.log("✅ Status จาก Neo4j:", status);
@@ -83,6 +101,7 @@ const CampaignDetailPage = () => {
       console.log("✅ bannerUrl =", bannerUrl);
     }
   }, [bannerUrl]);
+
 
   useEffect(() => {
 
@@ -239,54 +258,56 @@ const CampaignDetailPage = () => {
     }
   };
 
-useEffect(() => {
-  async function fetchData() {
-    const res = await fetch(`/api/campaigndetail/${encodeURIComponent(name)}`);
-    const data = await res.json();
-    // … ดึง banner เดิม …
-    // ➡️ ดึงโลโก้พรรค
-    if (data.party?.name) {
-      const logoRes = await fetch(`/api/partylogo/${encodeURIComponent(data.party.name)}`);
-      if (logoRes.ok) setLogoUrl(logoRes.url);
-      else console.warn('ไม่พบโลโก้ใน API /api/partylogo');
+
+
+  useEffect(() => {
+    async function fetchData() {
+      const res = await fetch(`/api/campaigndetail/${encodeURIComponent(name)}`);
+      const data = await res.json();
+      // … ดึง banner เดิม …
+      // ➡️ ดึงโลโก้พรรค
+      if (data.party?.name) {
+        const logoRes = await fetch(`/api/partylogo/${encodeURIComponent(data.party.name)}`);
+        if (logoRes.ok) setLogoUrl(logoRes.url);
+        else console.warn('ไม่พบโลโก้ใน API /api/partylogo');
+      }
     }
-  }
-  fetchData();
-}, [name]);
+    fetchData();
+  }, [name]);
 
-useEffect(() => {
-  // สมมติว่าใน Firebase Console คุณอัปโหลดโฟลเดอร์ชื่อตรง ๆ
-  // เช่น "campaign/picture/My Campaign" (มีช่องว่าง, อักขระไทย ฯลฯ)
-  const folderRef = ref(storage, `campaign/picture/${name}`);
+  useEffect(() => {
+    // สมมติว่าใน Firebase Console คุณอัปโหลดโฟลเดอร์ชื่อตรง ๆ
+    // เช่น "campaign/picture/My Campaign" (มีช่องว่าง, อักขระไทย ฯลฯ)
+    const folderRef = ref(storage, `campaign/picture/${name}`);
 
-  listAll(folderRef)
-    .then(res => {
-      // ดูว่ามันเจอไฟล์อะไรบ้าง
-      console.log("found items:", res.items.map(i => i.fullPath));
-      return Promise.all(res.items.map(item => getDownloadURL(item)));
-    })
-    .then(urls => {
-      console.log("download URLs:", urls);
-      setGalleryUrls(urls);
-    })
-    .catch(err => {
-      console.error("โหลดแกลเลอรีผิดพลาด:", err);
-    });
-}, [name]);
+    listAll(folderRef)
+      .then(res => {
+        // ดูว่ามันเจอไฟล์อะไรบ้าง
+        console.log("found items:", res.items.map(i => i.fullPath));
+        return Promise.all(res.items.map(item => getDownloadURL(item)));
+      })
+      .then(urls => {
+        console.log("download URLs:", urls);
+        setGalleryUrls(urls);
+      })
+      .catch(err => {
+        console.error("โหลดแกลเลอรีผิดพลาด:", err);
+      });
+  }, [name]);
 
 
   return (
     <div className="font-prompt">
       <div className="bg-white">
         <Navbar />
-    <div
-      className="relative grid grid-rows-[auto_auto_1fr_1fr] grid-cols-4 h-[50svh] bg-cover bg-center"
-      style={{
-        backgroundImage: "url('/bg/หัวข้อ.png')"
-      }}
-    >          
-    <div className="flex items-start ml-10 mt-10">
-           <button
+        <div
+          className="relative grid grid-rows-[auto_auto_1fr_1fr] grid-cols-4 h-[50svh] bg-cover bg-center"
+          style={{
+            backgroundImage: "url('/bg/หัวข้อ.png')"
+          }}
+        >
+          <div className="flex items-start ml-10 mt-10">
+            <button
               onClick={() => router.back()}
               className="
                 flex items-center gap-2
@@ -358,27 +379,27 @@ useEffect(() => {
               )}
             </div>
 
-             {/* Badge พรรค */}
-          {party && logoUrl && (
-        <Link
-          href={`/party/${encodeURIComponent(party.name)}`}
-          className="absolute top-6 right-6 z-20"
-        >
-          <div className="bg-white rounded-2xl shadow-lg p-4 flex items-center space-x-3 cursor-pointer">
-            {/* กล่องเก็บรูปขนาด 48x48px พร้อม overflow */}
-            <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100">
-              <img
-                src={logoUrl}
-                alt={`โลโก้พรรค ${party.name}`}
-                className="w-full h-full object-contain"
-              />
-            </div>
-            <span className="text-gray-800 font-semibold text-base">
-              พรรค{party.name}
-            </span>
-          </div>
-        </Link>
-      )}
+            {/* Badge พรรค */}
+            {party && logoUrl && (
+              <Link
+                href={`/party/${encodeURIComponent(party.name)}`}
+                className="absolute top-6 right-6 z-20"
+              >
+                <div className="bg-white rounded-2xl shadow-lg p-4 flex items-center space-x-3 cursor-pointer">
+                  {/* กล่องเก็บรูปขนาด 48x48px พร้อม overflow */}
+                  <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100">
+                    <img
+                      src={logoUrl}
+                      alt={`โลโก้พรรค ${party.name}`}
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                  <span className="text-gray-800 font-semibold text-base">
+                    พรรค{party.name}
+                  </span>
+                </div>
+              </Link>
+            )}
 
           </div>
 
@@ -403,144 +424,166 @@ useEffect(() => {
         </div>
 
 
-<div className="bg-[#e2edfe] relative z-10 flex flex-col items-center h-full px-6 sm:px-10 lg:px-16 xl:px-24 py-16">
-  <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 w-full max-w-7xl">
+        <div className="bg-[#e2edfe] relative z-10 flex flex-col items-center h-full px-6 sm:px-10 lg:px-16 xl:px-24 py-16">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 w-full max-w-7xl">
 
-    {/* 🔹 ซ้าย: โครงการ + นโยบาย + กิจกรรม */}
-    <div className="space-y-10 col-span-1">
+            {/* 🔹 ซ้าย: โครงการ + นโยบาย + กิจกรรม */}
+            <div className="space-y-10 col-span-1">
 
-      {/* 📁 โครงการ */}
-<section>
-  <h2 className="text-xl font-bold text-[#2C3E50] mb-4">📁 โครงการที่เกี่ยวข้อง</h2>
-  {relatedProjects.filter(p => p.name?.trim()).length > 0 ? (
-    <div className="space-y-4">
-      {relatedProjects
-        .filter(p => p.name?.trim())
-        .map((project, idx) => (
-          <Link
-            href={`/campaigndetail/${encodeURIComponent(project.name)}`}
-            key={project.name || idx}
-            className="block bg-white rounded-xl shadow-md hover:shadow-lg transition p-4 border border-gray-200"
-          >
-            <h3 className="font-semibold text-[#5D5A88] text-lg mb-1">{project.name}</h3>
-            <p className="text-gray-700">{project.description}</p>
-          </Link>
-        ))}
-    </div>
-  ) : (
-    <p className="text-gray-500">ไม่มีโครงการที่เกี่ยวข้อง</p> // ✅ แสดงข้อความแทน
-  )}
-</section>
+              {/* 📁 โครงการ */}
+              <section>
+                <h2 className="text-xl font-bold text-[#2C3E50] mb-4">📁 โครงการที่เกี่ยวข้อง</h2>
+                {relatedProjects.filter(p => p.name?.trim()).length > 0 ? (
+                  <div className="space-y-4">
+                    {relatedProjects
+                      .filter(p => p.name?.trim())
+                      .map((project, idx) => (
+                        <Link
+                          href={`/campaigndetail/${encodeURIComponent(project.name)}`}
+                          key={project.name || idx}
+                          className="block bg-white rounded-xl shadow-md hover:shadow-lg transition p-4 border border-gray-200"
+                        >
+                          <h3 className="font-semibold text-[#5D5A88] text-lg mb-1">{project.name}</h3>
+                          <p className="text-gray-700 break-words line-clamp-4 max-w-full overflow-hidden">
+                            {project.description}
+                          </p>
+
+                        </Link>
+                      ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500">ไม่มีโครงการที่เกี่ยวข้อง</p> // ✅ แสดงข้อความแทน
+                )}
+              </section>
 
 
-      
 
-      {/* 📌 นโยบาย */}
-      <section>
-        <h2 className="text-xl font-bold text-[#2C3E50] mb-4">📌 นโยบายที่เกี่ยวข้อง</h2>
-        {policy ? (
-          <Link
-            href={`/policydetail/${encodeURIComponent(policy.name)}`}
-            className="block bg-white rounded-xl shadow-md hover:shadow-xl transition p-4 border border-gray-200"
-          >
-            <h3 className="font-semibold text-[#5D5A88] text-lg mb-1">{policy.name}</h3>
-            <p className="text-gray-600">{policy.description}</p>
-          </Link>
-        ) : (
-          <p className="text-gray-500">ไม่มีนโยบายที่เกี่ยวข้อง</p>
-        )}
-      </section>
 
-      {/* 📅 กิจกรรม */}
-      <section>
-        <h2 className="text-xl font-bold text-[#2C3E50] mb-4">📅 กิจกรรมที่เกี่ยวข้อง</h2>
-        {Array.isArray(relatedEvents) && relatedEvents.some(e => e.name && e.description) ? (
-          <div className="space-y-4">
-            {relatedEvents.map((event, idx) => (
-              <Link
-                href={`/eventdetail/${encodeURIComponent(event.name)}`}
-                key={event.name || idx}
-                className="block bg-white rounded-xl shadow-md hover:shadow-xl transition p-4 border border-gray-200"
-              >
-                <h3 className="font-semibold text-[#5D5A88] text-lg mb-1">{event.name}</h3>
-                <p className="text-gray-600">{event.description}</p>
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <p className="text-gray-500">ไม่มีกิจกรรมที่เกี่ยวข้อง</p>
-        )}
-      </section>
-    </div>
+              {/* 📌 นโยบาย */}
+              <section>
+                <h2 className="text-xl font-bold text-[#2C3E50] mb-4">📌 นโยบายที่เกี่ยวข้อง</h2>
+                {policy ? (
+                  <Link
+                    href={`/policydetail/${encodeURIComponent(policy.name)}`}
+                    className="block bg-white rounded-xl shadow-md hover:shadow-xl transition p-4 border border-gray-200"
+                  >
+                    <h3 className="font-semibold text-[#5D5A88] text-lg mb-1">{policy.name}</h3>
+                    <p className="text-gray-700 break-words line-clamp-4 max-w-full overflow-hidden">
+                      {policy.description}
+                    </p>
 
-    {/* 💸 ขวา: การเงิน */}
-    <div className="col-span-1">
-      <section>
-        <h2 className="text-xl font-bold text-[#2C3E50] mb-4">💸 การเงิน</h2>
-        <div className="relative rounded-xl overflow-hidden shadow-md border border-gray-200 bg-white">
-          <div className="w-full h-0 pb-[56.25%]" />
-          <iframe
-            title="การเงิน"
-            src={
-              "https://app.powerbi.com/reportEmbed?" +
-              "reportId=f8ae1b9b-fa2e-467b-bb5a-a1a46b4f3dd9" +
-              "&autoAuth=true&ctid=0a43deb9-efb0-4f46-8594-71899230fda6" +
-              "&actionBarEnabled=false&filterPaneEnabled=false&navContentPaneEnabled=false&pageView=fitToWidth"
-            }
-            className="absolute inset-0 w-full h-full border-0"
-            allowFullScreen
-          />
-        </div>
-      </section>
-    </div>
+                  </Link>
+                ) : (
+                  <p className="text-gray-500">ไม่มีนโยบายที่เกี่ยวข้อง</p>
+                )}
+              </section>
+
+              {/* 📅 กิจกรรม */}
+              <section>
+                <h2 className="text-xl font-bold text-[#2C3E50] mb-4">📅 กิจกรรมที่เกี่ยวข้อง</h2>
+                {Array.isArray(relatedEvents) && relatedEvents.some(e => e.name && e.description) ? (
+                  <div className="space-y-4">
+                    {relatedEvents.map((event, idx) => (
+                      <Link
+                        href={`/eventdetail/${encodeURIComponent(event.name)}`}
+                        key={event.name || idx}
+                        className="block bg-white rounded-xl shadow-md hover:shadow-xl transition p-4 border border-gray-200"
+                      >
+                        <h3 className="font-semibold text-[#5D5A88] text-lg mb-1">{event.name}</h3>
+                        <p className="text-gray-700 break-words line-clamp-4 max-w-full overflow-hidden">
+                          {event.description}
+                        </p>
+
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500">ไม่มีกิจกรรมที่เกี่ยวข้อง</p>
+                )}
+              </section>
+            </div>
+
+            {/* 💸 ขวา: การเงิน */}
+            <div className="col-span-1">
+              <section>
+                <h2 className="text-xl font-bold text-[#2C3E50] mb-4">💸 การเงิน</h2>
+                <div className="relative rounded-xl overflow-hidden shadow-md border border-gray-200 bg-white">
+                  <div className="w-full h-0 pb-[56.25%]" />
+                  <iframe
+                    title="การเงิน"
+                    src={
+                      "https://app.powerbi.com/reportEmbed?" +
+                      "reportId=f8ae1b9b-fa2e-467b-bb5a-a1a46b4f3dd9" +
+                      "&autoAuth=true&ctid=0a43deb9-efb0-4f46-8594-71899230fda6" +
+                      "&actionBarEnabled=false&filterPaneEnabled=false&navContentPaneEnabled=false&pageView=fitToWidth"
+                    }
+                    className="absolute inset-0 w-full h-full border-0"
+                    allowFullScreen
+                  />
+                </div>
+              </section>
+              {pdfUrl && (
+  <div className="mt-6 bg-white border border-gray-200 rounded-xl p-4 shadow hover:shadow-lg transition">
+    <h3 className="text-lg font-bold text-[#2C3E50] mb-2">📄 เอกสารอ้างอิง</h3>
+    <a
+      href={pdfUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-[#5D5A88] underline hover:text-[#3e3a6d]"
+    >
+      🔗 เปิดเอกสารอ้างอิง
+    </a>
   </div>
-</div>
+)}
+
+            </div>
+          </div>
+        </div>
 
 
-    <h2 className="text-[#2C3E50] text-center font-bold my-10">แกลอรี่รูปภาพ</h2>
-        <section className="bg-white py-12">
-  <div className="max-w-6xl mx-auto px-4">
-    
-    <div className="columns-2 sm:columns-3 lg:columns-4 gap-4 space-y-4">
-      {galleryUrls.length > 0 ? (
-        galleryUrls.map((url, idx) => (
+
+<section className="bg-gradient-to-br from-[#e2edfe] to-[#ffffff] py-16 bg-center bg-cover" style={{ backgroundImage: "url('/bg/หัวข้อ.png')" }}>
+        <h2 className="text-white text-center font-bold text-3xl mb-12 tracking-wide">แกลอรี่รูปภาพ</h2>
+
+  <div className="max-w-7xl mx-auto px-6">
+    {galleryUrls.length > 0 ? (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {galleryUrls.map((url, idx) => (
           <div
             key={idx}
-            className="relative break-inside-avoid mb-4 overflow-hidden rounded-xl shadow-lg group cursor-pointer"
+            className="group relative overflow-hidden rounded-2xl shadow-xl cursor-pointer transform transition-all hover:scale-105 hover:shadow-2xl"
             onClick={() => setSelectedUrl(url)}
           >
             <img
               src={url}
               alt={`รูปที่ ${idx + 1}`}
-              className="w-full transition-transform duration-300 group-hover:scale-105"
+              className="w-full h-60 object-cover transition duration-500 ease-in-out group-hover:brightness-75"
             />
-            <div className="absolute inset-0 bg-black bg-opacity-30 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-              <span className="text-sm text-white">รูปที่ {idx + 1}</span>
-            </div>
+            
+            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-10 backdrop-blur-sm"></div>
           </div>
-        ))
-      ) : (
-        <p className="text-center text-gray-500">
-          ไม่มีรูปภาพในแกลเลอรี
-        </p>
-      )}
-    </div>
+        ))}
+      </div>
+    ) : (
+      <p className="text-center text-gray-500 text-lg">ไม่มีรูปภาพในแกลเลอรี</p>
+    )}
   </div>
 
+  {/* 🔍 Modal for expanded view */}
   {selectedUrl && (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-80 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-80 p-6"
       onClick={() => setSelectedUrl(null)}
     >
       <img
         src={selectedUrl}
         alt="ขยายภาพ"
-        className="max-w-full max-h-full rounded-lg shadow-2xl"
+        className="max-w-full max-h-full rounded-2xl shadow-2xl border-4 border-white"
       />
     </div>
   )}
 </section>
+
 
         <Footer />
       </div>
