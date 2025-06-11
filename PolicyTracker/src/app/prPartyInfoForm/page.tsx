@@ -15,6 +15,8 @@ export default function PRPartyInfoForm() {
   const [link, setLink] = useState("");
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [existingLogoUrl, setExistingLogoUrl] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const partyId = typeof window !== "undefined" ? localStorage.getItem("partyId") ?? "" : "";
 
@@ -65,6 +67,7 @@ export default function PRPartyInfoForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
 
     let logoUrl = existingLogoUrl;
     try {
@@ -88,7 +91,6 @@ export default function PRPartyInfoForm() {
 
       });
 
-
       if (res.ok) {
         alert("บันทึกสำเร็จ");
         router.push("/prPartyInfo");
@@ -97,6 +99,8 @@ export default function PRPartyInfoForm() {
       }
     } catch (err) {
       console.error("Submit error:", err);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -146,20 +150,33 @@ export default function PRPartyInfoForm() {
             <input
               type="file"
               accept="image/*"
-              onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
+              onChange={(e) => {
+                const file = e.target.files?.[0] || null;
+                setLogoFile(file);
+                if (file) {
+                  setPreviewUrl(URL.createObjectURL(file));
+                }
+              }}
               className="w-full"
             />
-            {existingLogoUrl && (
-              <img src={existingLogoUrl} alt="โลโก้พรรค" className="mt-4 h-32 rounded shadow-md" />
-            )}
+            {previewUrl ? (
+              <img src={previewUrl} alt="โลโก้ใหม่" className="mt-4 h-32 rounded shadow-md" />
+            ) : existingLogoUrl ? (
+              <img src={existingLogoUrl} alt="โลโก้พรรคเดิม" className="mt-4 h-32 rounded shadow-md" />
+            ) : null}
           </div>
 
           <button
             type="submit"
-            className="bg-[#5D5A88] text-white px-6 py-2 rounded-md hover:bg-[#46426b]"
+            disabled={isSubmitting}
+            className={`px-6 py-2 rounded-md w-full ${isSubmitting
+              ? "bg-gray-400 text-white cursor-not-allowed"
+              : "bg-[#5D5A88] text-white hover:bg-[#46426b]"
+              }`}
           >
-            บันทึกข้อมูล
+            {isSubmitting ? "กำลังบันทึก..." : "บันทึกข้อมูล"}
           </button>
+
         </form>
       </div>
     </div>

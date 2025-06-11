@@ -77,7 +77,7 @@ const CampaignDetailPage = () => {
     { name: string; description?: string; link?: string } | null
   >(null);
 
-  const [relatedEvents, setRelatedEvents] = useState<{ name: string; description: string }[]>([]);
+  const [relatedEvents, setRelatedEvents] = useState<{id:string; name: string; description: string }[]>([]);
   const [galleryUrls, setGalleryUrls] = useState<string[]>([]);
   const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string>("");
@@ -165,19 +165,7 @@ const CampaignDetailPage = () => {
   }, [status]);
 
   useEffect(() => {
-    if (!name) return;
-    const fetchPolicy = async () => {
-      const res = await fetch(`/api/policydetail/${encodeURIComponent(name)}`);
-      const data = await res.json();
-      setPolicyName(data.name || "name");
-      setDescription(data.description || "");
-      setStatus(data.status || null);
-    };
-
-  });
-
-  useEffect(() => {
-    const folderRef = ref(storage, `campaign/picture/${name}`);
+    const folderRef = ref(storage, `campaign/picture/${campaignId}`);
 
     listAll(folderRef)
       .then(res => {
@@ -191,7 +179,7 @@ const CampaignDetailPage = () => {
       .catch(err => {
         console.error("โหลดแกลเลอรีผิดพลาด:", err);
       });
-  }, [name]);
+  }, [campaignId]);
 
   const maxExpense = expenses.length
     ? Math.max(...expenses.map(e => e.amount))
@@ -220,6 +208,16 @@ const CampaignDetailPage = () => {
         display: true,
         position: 'bottom' as const,
       },
+      tooltip: {
+      callbacks: {
+        label: function (context: any) {
+          const label = context.label || '';
+          const value = context.raw || 0;
+          const formatted = Number(value).toLocaleString('th-TH');
+          return `${label}: ${formatted} บาท`; 
+        }
+      }
+    },
       datalabels: {
         color: '#fff',
         formatter: (value: number, ctx: any) => {
@@ -381,7 +379,6 @@ const CampaignDetailPage = () => {
                 className="absolute top-6 right-6 z-20"
               >
                 <div className="bg-white rounded-2xl shadow-lg p-4 flex items-center space-x-3 cursor-pointer">
-                  {/* กล่องเก็บรูปขนาด 48x48px พร้อม overflow */}
                   <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100">
                     <img
                       src={logoUrl}
@@ -474,8 +471,8 @@ const CampaignDetailPage = () => {
                   <div className="space-y-4">
                     {relatedEvents.map((event, idx) => (
                       <Link
-                        href={`/eventdetail/${encodeURIComponent(event.name)}`}
-                        key={event.name || idx}
+                        href={`/eventdetail/${encodeURIComponent(event.id)}`}
+                        key={event.id || idx}
                         className="block bg-white rounded-xl shadow-md hover:shadow-xl transition p-4 border border-gray-200"
                       >
                         <h3 className="font-semibold text-[#5D5A88] text-lg mb-1">{event.name}</h3>

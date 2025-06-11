@@ -155,55 +155,53 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
     if (isSpecial) {
       await session.run(
         `
-       MATCH (c:SpecialCampaign {id: $id})
-  WITH c, labels(c) AS lbls
-  FOREACH (_ IN CASE WHEN 'Campaign' IN lbls THEN [1] ELSE [] END | REMOVE c:Campaign)
-  FOREACH (_ IN CASE WHEN 'SpecialCampaign' NOT IN lbls THEN [1] ELSE [] END | SET c:SpecialCampaign)
-  WITH c
-  OPTIONAL MATCH (c)-[r:PART_OF]->()
-  DELETE r
-  WITH c
-  OPTIONAL MATCH (c)-[r2:CREATED_BY]->()
-  DELETE r2
-  WITH c
-  MATCH (party:Party {id: toInteger($partyId)})
-  MERGE (c)-[:CREATED_BY]->(party)
-  SET c.name = $name,
-      c.description = $description,
-      c.status = $status,
-      c.progress = $progress,
-      c.area = $area,
-      c.impact = $impact,
-      c.size = $size
-  `,
+        MATCH (c) WHERE c.id = $id AND (c:Campaign OR c:SpecialCampaign)
+        REMOVE c:Campaign
+        SET c:SpecialCampaign
+        WITH c
+        OPTIONAL MATCH (c)-[r:PART_OF]->()
+        DELETE r
+        WITH c
+        OPTIONAL MATCH (c)-[r2:CREATED_BY]->()
+        DELETE r2
+        WITH c
+        MATCH (party:Party {id: toInteger($partyId)})
+        MERGE (c)-[:CREATED_BY]->(party)
+        SET c.name = $name,
+            c.description = $description,
+            c.status = $status,
+            c.progress = $progress,
+            c.area = $area,
+            c.impact = $impact,
+            c.size = $size
+        `,
         { id: idNumber, name, description, status, progress, area, impact, size, partyId }
       );
     } else {
       await session.run(
         `
-        MATCH (c:Campaign {id: $id})
-  WITH c, labels(c) AS lbls
-  FOREACH (_ IN CASE WHEN 'SpecialCampaign' IN lbls THEN [1] ELSE [] END | REMOVE c:SpecialCampaign)
-  FOREACH (_ IN CASE WHEN 'Campaign' NOT IN lbls THEN [1] ELSE [] END | SET c:Campaign)
-  WITH c
-  OPTIONAL MATCH (c)-[r:PART_OF]->()
-  DELETE r
-  WITH c
-  OPTIONAL MATCH (c)-[r2:CREATED_BY]->()
-  DELETE r2
-  WITH c
-  MATCH (p:Policy {id: toInteger($policyId)})
-  MATCH (party:Party {id: toInteger($partyId)})
-  MERGE (c)-[:PART_OF]->(p)
-  MERGE (c)-[:CREATED_BY]->(party)
-  SET c.name = $name,
-      c.description = $description,
-      c.status = $status,
-      c.progress = $progress,
-      c.area = $area,
-      c.impact = $impact,
-      c.size = $size
-  `,
+        MATCH (c) WHERE c.id = $id AND (c:Campaign OR c:SpecialCampaign)
+        REMOVE c:SpecialCampaign
+        SET c:Campaign
+        WITH c
+        OPTIONAL MATCH (c)-[r:PART_OF]->()
+        DELETE r
+        WITH c
+        OPTIONAL MATCH (c)-[r2:CREATED_BY]->()
+        DELETE r2
+        WITH c
+        MATCH (p:Policy {id: toInteger($policyId)})
+        MATCH (party:Party {id: toInteger($partyId)})
+        MERGE (c)-[:PART_OF]->(p)
+        MERGE (c)-[:CREATED_BY]->(party)
+        SET c.name = $name,
+            c.description = $description,
+            c.status = $status,
+            c.progress = $progress,
+            c.area = $area,
+            c.impact = $impact,
+            c.size = $size
+        `,
         { id: idNumber, policyId, name, description, status, progress, area, impact, size, partyId }
       );
     }
@@ -220,9 +218,9 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
         const amount = Number(exp.amount);
         if (exp.description && !isNaN(amount)) {
           await pg.query(
-            `INSERT INTO expenses (campaign_id, description, amount, category)
-             VALUES ($1, $2, $3, $4)`,
-            [idNumber, exp.description, amount, "ไม่ระบุ"]
+            `INSERT INTO expenses (campaign_id, description, amount)
+             VALUES ($1, $2, $3)`,
+            [idNumber, exp.description, amount,]
           );
         }
       }

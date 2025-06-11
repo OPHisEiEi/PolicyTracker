@@ -30,7 +30,7 @@ export async function GET(
       OPTIONAL MATCH (p)-[:BELONGS_TO]->(party:Party)
       WITH c, p, relatedProjects, head(collect(party)) AS partyNode
 
-      OPTIONAL MATCH (e:Event)-[:BELONGS_TO]->(p)
+      OPTIONAL MATCH (e:Event)-[:UNDER_CAMPAIGN]->(c)
       WITH c, p, relatedProjects, partyNode,
            collect({ id: e.id, name: e.name, description: e.description }) AS relatedEvents
 

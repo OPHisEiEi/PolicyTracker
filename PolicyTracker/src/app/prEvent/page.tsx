@@ -126,7 +126,8 @@ export default function PRActivitiesPage() {
                   <div>
                     <h3 className="text-lg font-semibold">{event.event_name}</h3>
                     <p className="text-gray-600"><strong>สถานะ:</strong> {event.event_status}</p>
-                    <p className="text-gray-600"><strong>วันที่:</strong> {event.event_date} <strong>เวลา:</strong> {event.event_time}</p>
+                    <p className="text-gray-600"><strong>วันที่:</strong> {event.event_date}</p>
+                    <p className="text-gray-600"><strong>เวลา:</strong> {event.event_time}</p>
                     <p className="text-gray-600"><strong>สถานที่:</strong> {event.event_location}</p>
                     <p className="text-gray-500 mt-2">{event.event_des ? event.event_des.slice(0, 100) + "..." : "-"}</p>
                   </div>

@@ -52,6 +52,7 @@ export default function PRPolicyForm() {
       setPolicyName(data.name || "");
       setPolicyCategory(data.category || "เศรษฐกิจ");
       setPolicyDes(data.description || "");
+      setPolicyStatus(data.status || "เริ่มนโยบาย");
     };
 
     fetchPolicy();
@@ -78,7 +79,7 @@ export default function PRPolicyForm() {
         setPolicyName(data.name || "");
         setPolicyCategory(data.category || "เศรษฐกิจ");
         setPolicyDes(data.description || "");
-
+        setPolicyStatus(data.status || "เริ่มนโยบาย");
         try {
           const jpgRef = ref(storage, `policy/banner/${policyId}.jpg`);
           const jpgUrl = await getDownloadURL(jpgRef);

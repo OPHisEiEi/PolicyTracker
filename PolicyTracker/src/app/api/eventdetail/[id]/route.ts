@@ -14,31 +14,33 @@ const decodedId = parseInt(decodeURIComponent(id), 10);
     const result = await session.run(
   `
   MATCH (e:Event {id: $id})
-  OPTIONAL MATCH (e)-[:LOCATED_IN]->(p:Province)
-  OPTIONAL MATCH (e)-[:ORGANIZED_BY]->(party:Party)
-  OPTIONAL MATCH (e)-[:RELATED_POLICY]->(po:Policy)
-  RETURN e.id AS id,
-         e.name AS name,
-         e.description AS description,
-         e.date AS date,
-         e.time AS time,
-         e.location AS location,
-         e.map AS map,
-         e.status AS status,
-         p.name AS province,
-         party.name AS party,
-         po.name AS relatedPolicyName,
-         po.description AS relatedPolicyDescription,
-         po.id AS relatedPolicyId
-  `,
-  { id: decodedId }
-);
+      OPTIONAL MATCH (e)-[:LOCATED_IN]->(p:Province)
+      OPTIONAL MATCH (e)-[:ORGANIZED_BY]->(party:Party)
+      OPTIONAL MATCH (e)-[:RELATED_POLICY]->(po:Policy)
+      RETURN e.id AS id,
+             e.name AS name,
+             e.description AS description,
+             e.date AS date,
+             e.time AS time,
+             e.location AS location,
+             e.map AS map,
+             e.status AS status,
+             p.name AS province,
+             party.name AS partyName,
+             party.id AS partyId,
+             po.name AS relatedPolicyName,
+             po.description AS relatedPolicyDescription,
+             po.id AS relatedPolicyId
+      `,
+      { id: decodedId }
+    );
 
     if (result.records.length === 0) {
       return NextResponse.json({ error: "ไม่พบกิจกรรม" }, { status: 404 });
     }
 
     const record = result.records[0];
+
     const data = {
       id: record.get("id")?.toNumber?.() ?? record.get("id"),
       name: record.get("name"),
@@ -49,17 +51,16 @@ const decodedId = parseInt(decodeURIComponent(id), 10);
       map: record.get("map"),
       status: record.get("status"),
       province: record.get("province"),
-      party: record.get("party"),
-      relatedPolicy: record.get("relatedPolicyName")
-  ? {
-      id: record.get("relatedPolicyId")?.toNumber?.() ?? null,
-      name: record.get("relatedPolicyName"),
-      description: record.get("relatedPolicyDescription"),
-    }
-  : null,
-
+      party: record.get("partyId") != null ? {
+        id: record.get("partyId")?.toNumber?.() ?? record.get("partyId"),
+        name: record.get("partyName")
+      } : null,
+      relatedPolicy: record.get("relatedPolicyId") != null ? {
+        id: record.get("relatedPolicyId")?.toNumber?.() ?? null,
+        name: record.get("relatedPolicyName"),
+        description: record.get("relatedPolicyDescription"),
+      } : null,
     };
-console.log("relatedPolicyId", record.get("relatedPolicyId"));
 
     return NextResponse.json(data);
   } catch (err) {

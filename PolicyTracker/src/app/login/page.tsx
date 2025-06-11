@@ -80,6 +80,11 @@ export default function LoginPage() {
                 placeholder="รหัสผ่าน"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleLogin(e);
+                  }
+                }}
                 className="w-full p-2 border rounded"
                 required
               />

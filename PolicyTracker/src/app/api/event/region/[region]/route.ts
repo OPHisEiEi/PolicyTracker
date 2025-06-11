@@ -20,6 +20,7 @@ export async function GET(
         e.date AS date,
         e.location AS location, 
         party.name AS party, 
+        party.id AS partyId,
         r.name AS region
       ORDER BY e.date DESC
       `,
@@ -36,6 +37,9 @@ export async function GET(
       date: record.get("date") ?? "",
       location: record.get("location") ?? "",
       party: record.get("party") ?? null,
+      partyId: typeof record.get("partyId")?.toNumber === "function"
+        ? record.get("partyId").toNumber()
+        : record.get("partyId") ?? null,
       region: record.get("region") ?? "",
     }));
 

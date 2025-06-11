@@ -165,7 +165,11 @@ export default function PRCampaignPage() {
                     <p className="text-gray-600">พื้นที่: {campaign.area ?? "-"}</p>
                     <p className="text-gray-600">ผลกระทบ: {campaign.impact ?? "-"}</p>
                     <p className="text-gray-600">ขนาดโครงการ: {campaign.size ?? "-"}</p>
-                    <p className="text-gray-600">งบที่ได้รับ: {campaign.budget?.toLocaleString() ?? "-"} บาท</p>
+                    <p className="text-gray-600">
+                      งบที่ได้รับ: {campaign.budget !== undefined && campaign.budget !== null
+                        ? Number(campaign.budget).toLocaleString("th-TH")
+                        : "-"} บาท
+                    </p>
                     <p className="text-gray-400 mt-2">ความคืบหน้า: {campaign.progress} %</p>
                   </div>
                   <div className="mb-auto flex justify-between mt-4">

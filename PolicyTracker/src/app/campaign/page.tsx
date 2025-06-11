@@ -14,7 +14,7 @@ interface Campaign {
   description: string;
   policy: string;
   party: string;
-  party_id: string;
+  party_id: number;
   status: string;
   size: string;
   budget: number;
@@ -45,16 +45,18 @@ export default function CampaignListPage() {
 
   useEffect(() => {
     const fetchCampaigns = async () => {
-      const res = await fetch(`/api/campaign?party=${encodeURIComponent(selectedParty)}`);
+      const res = await fetch(`/api/campaign?party=${selectedParty ?? ""}`);
       const data = await res.json();
       const combined = [...(data.normal || []), ...(data.special || [])];
       setCampaigns(combined);
 
       const logoMap: Record<string, string> = {};
       for (const c of combined) {
-        if (!logoMap[c.party_id]) {
-          const logoUrl = await loadLogo(c.party_id);
-          if (logoUrl) logoMap[c.party_id] = logoUrl;
+        if (c.party_id == null) continue;
+        const key = String(c.party_id);
+        if (!logoMap[key]) {
+          const logoUrl = await loadLogo(key);
+          if (logoUrl) logoMap[key] = logoUrl;
         }
       }
       setPartyLogos(logoMap);
@@ -63,7 +65,7 @@ export default function CampaignListPage() {
     const fetchParties = async () => {
       const res = await fetch("/api/admin/getAllParties");
       const data = await res.json();
-      setParties(data || []); 
+      setParties(data || []);
     };
 
 
@@ -71,9 +73,12 @@ export default function CampaignListPage() {
     fetchParties();
   }, [selectedParty]);
 
+  console.log("selectedParty", selectedParty);
+  console.log("campaigns", campaigns);
+
   const filtered = campaigns.filter((c) =>
-    selectedParty ? c.party_id === selectedParty : true
-  );
+  selectedParty ? c.party_id != null && String(c.party_id) === selectedParty : true
+);
 
   const normalCampaigns = filtered.filter((c) => {
     const names = Array.isArray(c.policy)
@@ -127,7 +132,7 @@ export default function CampaignListPage() {
                   className="bg-white p-4 rounded-lg shadow hover:shadow-lg transition cursor-pointer relative no-underline"
                 >
                   <img
-                    src={partyLogos[c.party_id]}
+                    src={partyLogos[c.party_id.toString()]}
                     alt={`โลโก้พรรค ${c.party_id}`}
                     className="absolute top-2 right-2 w-16 h-16 object-contain"
                   />
@@ -162,7 +167,7 @@ export default function CampaignListPage() {
                   className="bg-white p-4 rounded-lg shadow hover:shadow-lg transition cursor-pointer relative no-underline"
                 >
                   <img
-                    src={partyLogos[c.party_id]}
+                    src={partyLogos[c.party_id.toString()]}
                     alt={`โลโก้พรรค ${c.party_id}`}
                     className="absolute top-2 right-2 w-16 h-16 object-contain"
                   />

@@ -26,6 +26,7 @@ export async function GET(
         e.time AS time,
         e.location AS location,
         party.name AS party,
+        party.id AS partyId,
         $province AS province,
         $region AS region
       ORDER BY e.date DESC
@@ -44,10 +45,13 @@ export async function GET(
       time: record.get("time") ?? "",
       location: record.get("location") ?? "",
       party: record.get("party") ?? null,
+      partyId:
+        typeof record.get("partyId")?.toNumber === "function"
+          ? record.get("partyId").toNumber()
+          : record.get("partyId") ?? null,
       province: record.get("province") ?? decodedProvince,
       region: record.get("region") ?? decodedRegion,
     }));
-
 
     return NextResponse.json(events);
   } catch (err) {

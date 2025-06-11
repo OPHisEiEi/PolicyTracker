@@ -287,31 +287,93 @@ const PolicyDetailPage = () => {
   }, []);
 
   useEffect(() => {
+    const interval = setInterval(() => {
+      const container = scrollRef.current;
+      if (!container) return;
+
+      const onWheel = (e: WheelEvent) => {
+        const rect = container.getBoundingClientRect();
+        const isOverContainer =
+          e.clientX >= rect.left &&
+          e.clientX <= rect.right &&
+          e.clientY >= rect.top &&
+          e.clientY <= rect.bottom;
+
+        if (!isOverContainer) return;
+
+        e.preventDefault();
+        const scrollAmount = e.deltaY > 0 ? 200 : -200;
+        container.scrollBy({ left: scrollAmount, behavior: "smooth" });
+      };
+
+      container.addEventListener("wheel", onWheel, { passive: false });
+      clearInterval(interval);
+
+      return () => {
+        container.removeEventListener("wheel", onWheel);
+      };
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
     const container = scrollRef.current;
     if (!container) return;
 
-    let throttleTimer: number | null = null;
+    let startX = 0;
+    let startY = 0;
+    let scrollLeft = 0;
+    let isScrolling = false;
 
-    const onWheel = (e: WheelEvent) => {
-      if (throttleTimer) return;
+    const onTouchStart = (e: TouchEvent) => {
+      const touch = e.touches[0];
+      startX = touch.pageX - container.offsetLeft;
+      startY = touch.pageY;
+      scrollLeft = container.scrollLeft;
+      isScrolling = false;
+    };
 
-      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+    const onTouchMove = (e: TouchEvent) => {
+      const touch = e.touches[0];
+      const x = touch.pageX - container.offsetLeft;
+      const y = touch.pageY;
+
+      const deltaX = Math.abs(x - startX);
+      const deltaY = Math.abs(y - startY);
+
+      if (deltaX > deltaY && deltaX > 10) {
+        isScrolling = true;
         e.preventDefault();
-        container.scrollLeft += e.deltaY;
-
-        throttleTimer = window.setTimeout(() => {
-          throttleTimer = null;
-        }, 16);
+        const walk = (x - startX) * 2;
+        container.scrollLeft = scrollLeft - walk;
       }
     };
 
-    container.addEventListener('wheel', onWheel, { passive: false });
+    const onTouchEnd = () => {
+      isScrolling = false;
+    };
+
+    container.addEventListener('touchstart', onTouchStart);
+    container.addEventListener('touchmove', onTouchMove, { passive: false });
+    container.addEventListener('touchend', onTouchEnd);
 
     return () => {
-      container.removeEventListener('wheel', onWheel);
-      if (throttleTimer) clearTimeout(throttleTimer);
+      container.removeEventListener('touchstart', onTouchStart);
+      container.removeEventListener('touchmove', onTouchMove);
+      container.removeEventListener('touchend', onTouchEnd);
     };
   }, []);
+
+  const timelineScrollStyles = {
+    overflowX: 'auto' as const,
+    overflowY: 'hidden' as const,
+    scrollbarWidth: 'auto' as const,
+    msOverflowStyle: 'auto' as const,
+    WebkitOverflowScrolling: 'touch' as const,
+    cursor: 'grab',
+    userSelect: 'none' as const,
+  };
 
   const loadGalleryImages = useCallback(async () => {
     if (galleryLoading) return;
@@ -674,7 +736,7 @@ const PolicyDetailPage = () => {
                 className="object-contain"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
-                  target.src = "/default-logo.png"; 
+                  target.src = "/default-logo.png";
                 }}
               />
 
@@ -691,7 +753,7 @@ const PolicyDetailPage = () => {
                   {party.description}
                 </p>
                 <Link
-                  href={`/party/${encodeURIComponent(party.name)}`}
+                  href={`/party/${encodeURIComponent(party.id)}`}
                   className="bg-white text-[#5D5A88] px-6 py-2 rounded-md font-semibold hover:bg-gray-100 transition-colors"
                 >
                   อ่านเพิ่มเติมเกี่ยวกับพรรค
@@ -713,23 +775,33 @@ const PolicyDetailPage = () => {
             <>
               {!showAllTimeline ? (
                 <div className="relative">
+                  {/* Gradient overlays */}
                   <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-[#e2edfe] to-transparent z-10 pointer-events-none" />
                   <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[#e2edfe] to-transparent z-10 pointer-events-none" />
 
+                  {/* Scroll indicators */}
+                  <div className="absolute left-2 top-1/2 transform -translate-y-1/2 z-20 text-gray-400 pointer-events-none">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </div>
+                  <div className="absolute right-2 top-1/2 transform -translate-y-1/2 z-20 text-gray-400 pointer-events-none">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+
+                  {/* Timeline container */}
                   <div
                     ref={scrollRef}
-                    className="flex gap-4 overflow-x-auto overflow-y-hidden px-2 py-4 scrollbar-hide relative z-0"
-                    style={{
-                      scrollbarWidth: "none",
-                      msOverflowStyle: "none",
-                      overflowY: "hidden",
-                      WebkitOverflowScrolling: "touch",
-                    }}
+                    className="flex gap-4 overflow-x-auto overflow-y-hidden px-2 py-4 scrollbar-hide"
+                    style={{ ...timelineScrollStyles, minWidth: '100%', whiteSpace: 'nowrap' }}
                   >
                     {timeline.map((item, idx) => (
                       <div
                         key={`${item.date}-${idx}`}
                         className="min-w-[220px] max-w-[400px] bg-white border border-gray-200 rounded-lg px-4 py-3 flex-shrink-0 shadow hover:shadow-md transition relative"
+                        style={{ userSelect: 'text' }}
                       >
                         <div className="w-3 h-3 bg-[#5D5A88] rounded-full absolute -left-1 top-4 border-2 border-white"></div>
                         <h3 className="text-md font-bold text-xl text-[#5D5A88] mb-1">{item.name}</h3>
@@ -737,6 +809,11 @@ const PolicyDetailPage = () => {
                         <p className="text-sm text-gray-600">{item.description}</p>
                       </div>
                     ))}
+                  </div>
+
+                  {/* Hint text */}
+                  <div className="text-center mt-2 text-xs text-gray-400">
+                    Scroll Mouse เพื่อเลื่อนดูเหตุการณ์
                   </div>
                 </div>
               ) : (
@@ -839,22 +916,19 @@ const PolicyDetailPage = () => {
               </div>
             ) : galleryImages.length > 0 ? (
               <>
-                {/* Optimized Masonry Grid */}
-                <div className="columns-2 sm:columns-3 lg:columns-4 gap-4 space-y-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                   {galleryImages.slice(0, visibleGalleryCount).map((image, idx) => (
                     <div
                       key={idx}
-                      className="relative break-inside-avoid mb-4 overflow-hidden rounded-xl shadow-lg group cursor-pointer"
                       onClick={() => setSelectedUrl(image.url)}
+                      className="relative rounded-xl overflow-hidden shadow-lg group cursor-pointer aspect-square"
                     >
-                      <OptimizedImage
+                      <img
                         src={image.url}
                         alt={`แกลเลอรี่รูปที่ ${idx + 1}`}
-                        className="w-full transition-transform duration-300 group-hover:scale-105"
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                       />
-                      {/* Hover Overlay */}
-                      <div className="absolute inset-0 bg-black bg-opacity-30 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
-                      {/* Caption */}
+                      <div className="absolute inset-0 bg-black bg-opacity-30 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
                       <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black via-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                         <span className="text-sm text-white font-medium">รูปที่ {idx + 1}</span>
                       </div>

@@ -41,10 +41,9 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  context: { params: { id: string } }
+  { params }: { params: { id: string } }
 ) {
-  const { id: idStr } = await context.params;
-  const id = parseInt(idStr, 10);
+  const id = parseInt(params.id, 10);
   if (isNaN(id)) {
     return NextResponse.json({ error: "id ไม่ถูกต้อง" }, { status: 400 });
   }
@@ -66,12 +65,8 @@ export async function PUT(
   const neoSession = driver.session();
   try {
     await pgClient.query(
-      `UPDATE parties 
-         SET name = $1,
-             description = $2,
-             link = $3
-       WHERE id = $4`,
-      [name.trim(), description || "", link || "", id]
+      `UPDATE parties SET name = $1 WHERE id = $2`,
+      [name.trim(), id]
     );
 
     await neoSession.run(
@@ -100,6 +95,7 @@ export async function PUT(
     try { await neoSession.close(); } catch (e) { console.error(e); }
   }
 }
+
 
 export async function DELETE(
   request: NextRequest,

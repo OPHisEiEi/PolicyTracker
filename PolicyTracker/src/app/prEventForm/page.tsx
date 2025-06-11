@@ -63,6 +63,8 @@ export default function PREventForm() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [autocomplete, setAutocomplete] = useState<google.maps.places.Autocomplete | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
 
   const fullTimeRange = `${startTime} - ${endTime}`;
 
@@ -155,73 +157,81 @@ export default function PREventForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
 
     if (!markerPos || !province) {
       alert("กรุณาเลือกตำแหน่งและจังหวัด");
       return;
     }
 
-    const payload = {
-      id: eventId,
-      name: eventName,
-      description: eventDes,
-      date: `${startDate} - ${endDate}`,
-      time: `${startTime} - ${endTime}`,
-      location: eventLocation,
-      province,
-      map: `${markerPos.lat},${markerPos.lng}`,
-      policy: policyName,
-      partyId,
-      campaign: selectedCampaign,
-      status: eventStatus,
-    };
-
-    const res = await fetch("/api/prEventForm", {
-      method: eventId ? "PUT" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    const result = await res.json();
-    const id = eventId || result.id;
-    if (!id) {
-      alert("ไม่พบ event ID ไม่สามารถอัปโหลดไฟล์ได้");
-      return;
-    }
-
-    if (bannerFile) {
-      const fileExt = bannerFile.name.split(".").pop()?.toLowerCase() === "png" ? "png" : "jpg";
-      const bannerRef = ref(storage, `event/banner/${id}.${fileExt}`);
-      await uploadBytes(bannerRef, bannerFile);
-    }
-
-    if (picturesToDelete.length > 0) {
-  for (const path of picturesToDelete) {
     try {
-      await deleteObject(ref(storage, path));
+      const payload = {
+        id: eventId,
+        name: eventName,
+        description: eventDes,
+        date: `${startDate} - ${endDate}`,
+        time: `${startTime} - ${endTime}`,
+        location: eventLocation,
+        province,
+        map: `${markerPos.lat},${markerPos.lng}`,
+        policy: policyName,
+        partyId,
+        campaign: selectedCampaign,
+        status: eventStatus,
+      };
+
+      const res = await fetch("/api/prEventForm", {
+        method: eventId ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await res.json();
+      const id = eventId || result.id;
+      if (!id) {
+        alert("ไม่พบ event ID ไม่สามารถอัปโหลดไฟล์ได้");
+        return;
+      }
+
+      if (bannerFile) {
+        const fileExt = bannerFile.name.split(".").pop()?.toLowerCase() === "png" ? "png" : "jpg";
+        const bannerRef = ref(storage, `event/banner/${id}.${fileExt}`);
+        await uploadBytes(bannerRef, bannerFile);
+      }
+
+      if (picturesToDelete.length > 0) {
+        for (const path of picturesToDelete) {
+          try {
+            await deleteObject(ref(storage, path));
+          } catch (err) {
+            console.warn("ลบรูปไม่สำเร็จ:", err);
+          }
+        }
+      }
+
+      if (eventPictures.length > 0) {
+        for (const file of eventPictures) {
+          const timestamp = Date.now();
+          const ext = file.name.split('.').pop();
+          const random = Math.random().toString(36).substring(2, 8);
+          const filename = `${timestamp}_${random}.${ext}`;
+          const imageRef = ref(storage, `event/picture/${id}/${filename}`);
+          await uploadBytes(imageRef, file);
+        }
+      }
+
+      if (res.ok) {
+        alert(eventId ? "แก้ไขกิจกรรมสำเร็จ" : "บันทึกกิจกรรมสำเร็จ");
+        router.push("/prEvent");
+      } else {
+        const text = await res.text();
+        alert("บันทึกไม่สำเร็จ: " + text);
+      }
     } catch (err) {
-      console.warn("ลบรูปไม่สำเร็จ:", err);
-    }
-  }
-}
-
-    if (eventPictures.length > 0) {
-  for (const file of eventPictures) {
-    const timestamp = Date.now();
-    const ext = file.name.split('.').pop();
-    const random = Math.random().toString(36).substring(2, 8);
-    const filename = `${timestamp}_${random}.${ext}`;
-    const imageRef = ref(storage, `event/picture/${id}/${filename}`);
-    await uploadBytes(imageRef, file);
-  }
-}
-
-    if (res.ok) {
-      alert(eventId ? "แก้ไขกิจกรรมสำเร็จ" : "บันทึกกิจกรรมสำเร็จ");
-      router.push("/prEvent");
-    } else {
-      const text = await res.text();
-      alert("บันทึกไม่สำเร็จ: " + text);
+      console.error("Error:", err);
+      alert("เกิดข้อผิดพลาด");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -232,7 +242,7 @@ export default function PREventForm() {
       setEndTime(end.trim());
     } else {
       setStartTime(eventTime);
-      setEndTime(""); 
+      setEndTime("");
     }
   }, [eventTime]);
 
@@ -451,7 +461,15 @@ export default function PREventForm() {
               </div>
             )}
 
-            <button type="submit" className="w-full bg-[#5D5A88] text-white py-2 rounded">บันทึก</button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className={`w-full py-2 rounded ${isSubmitting ? "bg-gray-400 text-white cursor-not-allowed" : "bg-[#5D5A88] text-white hover:bg-[#46426b]"
+                }`}
+            >
+              {isSubmitting ? "กำลังบันทึก..." : "บันทึก"}
+            </button>
+
           </form>
         </div>
       </div>

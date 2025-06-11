@@ -14,6 +14,7 @@ interface EventData {
   date: string;
   location: string;
   party: string | null;
+  partyId: number | null;
   region?: string;
 }
 
@@ -215,11 +216,10 @@ export default function EventPage() {
               </h3>
               <div className="space-y-4">
                 {events.map((event, index) => {
-                  const partyImage = event.party
-                    ? `https://firebasestorage.googleapis.com/v0/b/policy-tracker-kp.firebasestorage.app/o/party%2Flogo%2F${encodeURIComponent(
-                      event.party
-                    )}.png?alt=media`
+                  const partyImage = event.partyId
+                    ? `https://firebasestorage.googleapis.com/v0/b/policy-tracker-kp.firebasestorage.app/o/party%2Flogo%2F${encodeURIComponent(event.partyId)}.png?alt=media`
                     : "/default-logo.png";
+
                   return (
                     <div
                       key={index}
@@ -261,11 +261,10 @@ export default function EventPage() {
             ) : (
               <div className="flex flex-wrap gap-6 justify-center">
                 {events.map((event, index) => {
-                  const partyImage = event.party
-                    ? `https://firebasestorage.googleapis.com/v0/b/policy-tracker-kp.firebasestorage.app/o/party%2Flogo%2F${encodeURIComponent(
-                      event.party
-                    )}.png?alt=media`
+                  const partyImage = event.partyId
+                    ? `https://firebasestorage.googleapis.com/v0/b/policy-tracker-kp.firebasestorage.app/o/party%2Flogo%2F${encodeURIComponent(event.partyId)}.png?alt=media`
                     : "/default-logo.png";
+
                   return (
                     <div
                       key={index}
@@ -281,8 +280,7 @@ export default function EventPage() {
                             src={partyImage}
                             alt={`โลโก้ของ ${event.party || "ไม่ทราบพรรค"}`}
                             onError={(e) => {
-                              (e.target as HTMLImageElement).src =
-                                "/default-logo.png";
+                              (e.target as HTMLImageElement).src = "/default-logo.png";
                             }}
                           />
                         </div>

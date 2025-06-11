@@ -20,6 +20,8 @@ export default function EditMemberForm() {
   const [imageUrl, setImageUrl] = useState("");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [partyId, setPartyId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
 
   const resizeImage = (file: File, maxWidth = 500, maxHeight = 500): Promise<Blob> => {
     return new Promise((resolve, reject) => {
@@ -114,26 +116,37 @@ export default function EditMemberForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!partyId || !memberId) return;
 
-    const basePath = `party/member/${partyId}/${memberId}`;
+    setIsSubmitting(true);
 
-    if (imageFile) {
-      const resizedBlob = await resizeImage(imageFile);
-      const imageRef = ref(storage, `${basePath}.jpg`);
-      await uploadBytes(imageRef, resizedBlob);
+
+    try {
+      const basePath = `party/member/${partyId}/${memberId}`;
+
+      if (imageFile) {
+        const resizedBlob = await resizeImage(imageFile);
+        const imageRef = ref(storage, `${basePath}.jpg`);
+        await uploadBytes(imageRef, resizedBlob);
+      }
+
+
+      const docRef = doc(firestore, "Party", partyId, "Member", memberId);
+      await updateDoc(docRef, {
+        FirstName: firstName,
+        LastName: lastName,
+        Role: role,
+      });
+
+      alert("อัปเดตข้อมูลสำเร็จ");
+      router.push("/prPartyInfo");
+    } catch (err) {
+      console.error("Error updating member:", err);
+      alert("เกิดข้อผิดพลาด");
+    } finally {
+      setIsSubmitting(false);
     }
-
-
-    const docRef = doc(firestore, "Party", partyId, "Member", memberId);
-    await updateDoc(docRef, {
-      FirstName: firstName,
-      LastName: lastName,
-      Role: role,
-    });
-
-    alert("อัปเดตข้อมูลสำเร็จ");
-    router.push("/prPartyInfo");
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -208,9 +221,17 @@ export default function EditMemberForm() {
             )}
           </div>
 
-          <button type="submit" className="bg-[#5D5A88] text-white px-4 py-2 rounded hover:bg-[#46426b]">
-            บันทึก
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className={`w-full px-4 py-2 rounded ${isSubmitting
+                ? "bg-gray-400 text-white cursor-not-allowed"
+                : "bg-[#5D5A88] text-white hover:bg-[#46426b]"
+              }`}
+          >
+            {isSubmitting ? "กำลังบันทึก..." : "บันทึก"}
           </button>
+
         </form>
       </div>
     </div>

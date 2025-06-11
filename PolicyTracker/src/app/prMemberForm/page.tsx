@@ -16,6 +16,7 @@ export default function PRMemberForm() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [partyName, setPartyName] = useState("ไม่ทราบชื่อพรรค");
   const [partyId, setPartyId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const router = useRouter();
 
@@ -45,7 +46,7 @@ export default function PRMemberForm() {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setMemberPic(file);
-      setPreviewUrl(URL.createObjectURL(file)); 
+      setPreviewUrl(URL.createObjectURL(file));
     }
   };
 
@@ -56,12 +57,13 @@ export default function PRMemberForm() {
       return;
     }
 
-    const fileExt = memberPic.name.split(".").pop()?.toLowerCase() === "png" ? "png" : "jpg";
-    const fullName = `${memberName}_${memberSurname}`.replace(/\s+/g, "_");
-    const firestorePath = `Party/${partyId}/Member`;
+    setIsSubmitting(true);
 
     try {
-      
+      const fileExt = memberPic.name.split(".").pop()?.toLowerCase() === "png" ? "png" : "jpg";
+      const fullName = `${memberName}_${memberSurname}`.replace(/\s+/g, "_");
+      const firestorePath = `Party/${partyId}/Member`;
+
       const memberCollection = collection(firestore, firestorePath);
       const snapshot = await getDocs(memberCollection);
 
@@ -73,11 +75,11 @@ export default function PRMemberForm() {
       const newId = maxId + 1;
 
       const resizedBlob = await resizeImage(memberPic);
-      
+
       const imageRef = ref(storage, `party/member/${partyId}/${newId}.${fileExt}`);
       await uploadBytes(imageRef, resizedBlob);
       const imageUrl = await getDownloadURL(imageRef);
-      
+
       const docRef = doc(firestore, firestorePath, String(newId));
       await setDoc(docRef, {
         FirstName: memberName,
@@ -92,6 +94,8 @@ export default function PRMemberForm() {
     } catch (err) {
       console.error("Error saving member:", err);
       alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -129,7 +133,7 @@ export default function PRMemberForm() {
         canvas.toBlob((blob) => {
           if (blob) resolve(blob);
           else reject("Failed to resize image");
-        }, "image/jpeg", 0.8); 
+        }, "image/jpeg", 0.8);
       };
 
       reader.onerror = (err) => reject(err);
@@ -202,12 +206,17 @@ export default function PRMemberForm() {
 
               <button
                 type="submit"
-                className="w-full bg-[#5D5A88] text-white p-3 rounded-md hover:bg-[#46426b] mt-4"
+                disabled={isSubmitting}
+                className={`w-full p-3 rounded-md mt-4 ${isSubmitting
+                  ? "bg-gray-400 text-white cursor-not-allowed"
+                  : "bg-[#5D5A88] text-white hover:bg-[#46426b]"
+                  }`}
               >
-                บันทึก
+                {isSubmitting ? "กำลังบันทึก..." : "บันทึก"}
               </button>
+
             </form>
-            
+
           </div>
         </main>
       </div>

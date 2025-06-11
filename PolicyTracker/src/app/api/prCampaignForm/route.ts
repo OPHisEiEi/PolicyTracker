@@ -37,7 +37,6 @@ export async function POST(req: NextRequest) {
     const existing = await client.query("SELECT id FROM campaigns WHERE name = $1", [name]);
     if ((existing?.rowCount ?? 0) > 0) {
       await client.query("ROLLBACK");
-      client.release();
       return new NextResponse(JSON.stringify({ error: "ชื่อโครงการนี้ถูกใช้ไปแล้ว" }), { status: 400 });
     }
 
@@ -99,7 +98,6 @@ export async function POST(req: NextRequest) {
       }
 
       await client.query("COMMIT");
-      client.release();
       return new NextResponse(JSON.stringify({ message: "สร้างโครงการพิเศษสำเร็จ", id: campaignId }), { status: 200 });
     }
 
@@ -145,7 +143,6 @@ export async function POST(req: NextRequest) {
     }
 
     await client.query("COMMIT");
-    client.release();
 
     return new NextResponse(JSON.stringify({ message: "สร้างโครงการสำเร็จ", id: campaignId }), { status: 200 });
   } catch (err) {

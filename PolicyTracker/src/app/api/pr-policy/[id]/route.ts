@@ -18,7 +18,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     const result = await session.run(
       `
       MATCH (p:Policy {id: toInteger($id)})-[:HAS_CATEGORY]->(c:Category)
-      RETURN p.name AS name, p.description AS description, c.name AS category
+      RETURN p.name AS name, p.description AS description, c.name AS category, p.status AS status
       `,
       { id: idNumber }
     );
@@ -34,6 +34,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       name: record.get("name"),
       description: record.get("description"),
       category: record.get("category"),
+      status: record.get("status"),
     });
   } catch (err) {
     console.error("GET error:", err);

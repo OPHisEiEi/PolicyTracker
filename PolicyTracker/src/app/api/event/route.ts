@@ -14,19 +14,19 @@ export async function GET(req: NextRequest) {
         e.description AS description,
         e.date AS date,
         e.location AS location,
-        p.name AS party
+        p.name AS partyName,
+        p.id AS partyId
       ORDER BY e.date DESC
     `);
 
     const events = result.records.map((r) => ({
-      id: typeof r.get("id")?.toNumber === "function"
-        ? r.get("id").toNumber()
-        : r.get("id"),
+      id: typeof r.get("id")?.toNumber === "function" ? r.get("id").toNumber() : r.get("id"),
       name: r.get("name") ?? "",
       description: r.get("description") ?? "",
       date: r.get("date") ?? "",
       location: r.get("location") ?? "",
-      party: r.get("party") ?? null,
+      party: r.get("partyName") ?? null,
+      partyId: r.get("partyId")?.toNumber?.() ?? null,
     }));
 
     return NextResponse.json(events);

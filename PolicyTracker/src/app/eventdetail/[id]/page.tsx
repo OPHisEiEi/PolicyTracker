@@ -119,17 +119,14 @@ const EventDetailPage = () => {
                 </button>
               )}
               <img
-                src={`https://firebasestorage.googleapis.com/v0/b/policy-tracker-kp.firebasestorage.app/o/party%2Flogo%2F${encodeURIComponent(eventData.party)}.png?alt=media`}
-                alt="โลโก้พรรค"
-                className="h-[40px]"
-                onError={(e) => {
-                  const img = e.target as HTMLImageElement;
-                  if (!img.src.includes("default-logo.png")) {
-                    img.src = "/default-logo.png";
-                  }
-                }}
-
-              />
+                src={`https://firebasestorage.googleapis.com/v0/b/policy-tracker-kp.firebasestorage.app/o/party%2Flogo%2F${encodeURIComponent(eventData.party?.id)}.png?alt=media`}
+              alt="โลโก้พรรค"
+              className="h-[40px]"
+              onError={(e) => {
+                const img = e.target as HTMLImageElement;
+                img.src = "/default-logo.png";
+              }}
+/>
             </div>
           </div>
 

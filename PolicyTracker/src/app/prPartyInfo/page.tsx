@@ -31,13 +31,17 @@ export default function PRPartyInfo() {
   const [partyId, setPartyId] = useState<string | null>(null);
   const [partyName, setPartyName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const pageSize = 9;
   const [currentPage, setCurrentPage] = useState(1);
   const observerRef = useRef<HTMLDivElement | null>(null);
   const [bulkImages, setBulkImages] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const [isFetching, setIsFetching] = useState(false);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
+
   const router = useRouter();
+
+  const pageSize = 9;
 
   const visibleMembers = useMemo(() =>
     members.slice(0, currentPage * pageSize),
@@ -139,7 +143,7 @@ export default function PRPartyInfo() {
         for (const ext of logoExtensions) {
           try {
             const testUrl = `https://firebasestorage.googleapis.com/v0/b/policy-tracker-kp.firebasestorage.app/o/party%2Flogo%2F${encodeURIComponent(partyId)}.${ext}?alt=media`;
-            const response = await fetch(testUrl, { method: 'HEAD' }); 
+            const response = await fetch(testUrl, { method: 'HEAD' });
             if (response.ok) {
               logoUrl = testUrl;
               break;
@@ -167,7 +171,7 @@ export default function PRPartyInfo() {
             name: firstName,
             surname: lastName,
             role,
-            image: "/default-profile.png", 
+            image: "/default-profile.png",
             needsImageLoad: true
           };
         });
@@ -190,7 +194,7 @@ export default function PRPartyInfo() {
   }, [partyId, partyName]);
 
   const loadMemberImages = useCallback(async (memberData: any[]) => {
-    const batchSize = 5; 
+    const batchSize = 5;
 
     for (let i = 0; i < memberData.length; i += batchSize) {
       const batch = memberData.slice(i, i + batchSize);
@@ -277,6 +281,9 @@ export default function PRPartyInfo() {
   const handleClearAll = useCallback(() => {
     setBulkImages([]);
     setPreviewUrls([]);
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
   }, []);
 
   const editMember = useCallback((id: string | number) => {
@@ -336,276 +343,292 @@ export default function PRPartyInfo() {
 
           <div className="flex justify-between mt-6">
             <button
-              onClick={async () => {
-                if (!partyId) return;
-                const confirmDelete = confirm("ต้องการลบสมาชิกทั้งหมดหรือไม่?");
-                if (!confirmDelete) return;
+  disabled={isDeletingAll}
+  onClick={async () => {
+    if (!partyId) return;
+    const confirmDelete = confirm("ต้องการลบสมาชิกทั้งหมดหรือไม่?");
+    if (!confirmDelete) return;
 
-                const snapshot = await getDocs(collection(firestore, "Party", partyId, "Member"));
-                const deletePromises = [];
+    setIsDeletingAll(true); // ✅ เริ่มลบ
 
-                for (const docSnap of snapshot.docs) {
-                  const id = docSnap.data().id;
-                  if (id == null) continue;
+    try {
+      const snapshot = await getDocs(collection(firestore, "Party", partyId, "Member"));
+      const deletePromises = [];
 
-                  deletePromises.push(
-                    deleteDoc(doc(firestore, "Party", partyId, "Member", String(id))),
-                    deleteObject(ref(storage, `party/member/${partyId}/${id}.jpg`)).catch(() => { }),
-                    deleteObject(ref(storage, `party/member/${partyId}/${id}.png`)).catch(() => { })
-                  );
+      for (const docSnap of snapshot.docs) {
+        const id = docSnap.data().id;
+        if (id == null) continue;
+
+        deletePromises.push(
+          deleteDoc(doc(firestore, "Party", partyId, "Member", String(id))),
+          deleteObject(ref(storage, `party/member/${partyId}/${id}.jpg`)).catch(() => {}),
+          deleteObject(ref(storage, `party/member/${partyId}/${id}.png`)).catch(() => {})
+        );
+      }
+
+      await Promise.all(deletePromises);
+      alert("ลบสมาชิกและรูปทั้งหมดสำเร็จ");
+      setMembers([]); // ✅ เคลียร์รายชื่อจาก state
+    } catch (err) {
+      console.error("Error deleting all members:", err);
+      alert("เกิดข้อผิดพลาด");
+    } finally {
+      setIsDeletingAll(false); // ✅ เสร็จ
+    }
+  }}
+  className={`px-4 py-2 rounded-md text-white ${
+    isDeletingAll ? "bg-gray-400 cursor-not-allowed" : "bg-red-600 hover:bg-red-700"
+  }`}
+>
+  {isDeletingAll ? "กำลังลบ..." : "🧹 ลบสมาชิกทั้งหมด"}
+</button>
+
+
+          <button
+            disabled={isFetching}
+            onClick={async () => {
+              if (!partyName || !partyId) return alert("ไม่พบข้อมูลพรรค");
+              const party = partyName.replace(/^พรรค\s*/, "").trim();
+              setIsFetching(true);
+
+              try {
+                const res = await fetch(`/api/scrape-member?party=${encodeURIComponent(party)}`);
+                const data = await res.json();
+                console.log("จำนวนสมาชิกที่ดึงได้:", data.members?.length);
+
+                if (!data.members?.length) {
+                  alert("ไม่พบข้อมูลสมาชิก");
+                  return;
                 }
 
-                await Promise.all(deletePromises);
-                alert("ลบสมาชิกและรูปทั้งหมดสำเร็จ");
-                location.reload();
-              }}
-              className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
+                const confirmUpload = confirm(`ดึงข้อมูล ${data.members.length} คน ต้องการบันทึกทั้งหมดหรือไม่?`);
+                if (!confirmUpload) return;
+
+                const memberCollection = collection(firestore, `Party/${partyId}/Member`);
+                const snapshot = await getDocs(memberCollection);
+                let maxId = Math.max(...snapshot.docs.map(doc => doc.data().id || 0), 0);
+
+                const newMembers: Member[] = [];
+                const savePromises = [];
+
+                for (const m of data.members) {
+                  const nameParts = m.name.trim().split(" ");
+                  const firstName = nameParts.slice(0, -1).join(" ") || "-";
+                  const lastName = nameParts.slice(-1)[0] || "-";
+                  const role = m.role ?? "-";
+                  const newId = ++maxId;
+
+                  const docRef = doc(firestore, `Party/${partyId}/Member`, String(newId));
+                  savePromises.push(
+                    setDoc(docRef, {
+                      FirstName: firstName,
+                      LastName: lastName,
+                      Role: role,
+                      id: newId,
+                    })
+                  );
+
+                  newMembers.push({
+                    id: String(newId),
+                    name: firstName,
+                    surname: lastName,
+                    role,
+                    image: "/default-profile.png",
+                  });
+                }
+
+                await Promise.all(savePromises);
+
+                if (newMembers.length > 0) {
+                  setMembers(prev => [...prev, ...newMembers]);
+                  alert("บันทึกสมาชิกทั้งหมดสำเร็จ");
+                } else {
+                  alert("ไม่สามารถเพิ่มสมาชิกได้");
+                }
+
+              } catch (err) {
+                console.error("ดึงข้อมูลล้มเหลว", err);
+                alert("เกิดข้อผิดพลาด");
+              } finally {
+                setIsFetching(false);
+              }
+            }}
+            className={`px-4 py-2 rounded-md text-white ${isFetching ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"
+              }`}
+          >
+            {isFetching ? "กำลังดึงข้อมูล..." : "📥 ดึงข้อมูลสมาชิกจาก กกต. (ชื่อพรรคต้องตรงกับชื่อในเว็บไซต์กกต.)"}
+          </button>
+
+          <button onClick={goToMemberForm} className="bg-[#5D5A88] text-white px-4 py-2 rounded-md hover:bg-[#46426b]">
+            ➕ เพิ่มข้อมูลสมาชิก
+          </button>
+      </div>
+
+      <div className="flex justify-center mt-6 flex-col items-center">
+        <label className="cursor-pointer bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+          📁 เลือกรูปสมาชิก
+          <input
+            type="file"
+            multiple
+            accept="image/*"
+            onChange={handleFileChange}
+            className="hidden"
+            ref={inputRef}
+          />
+        </label>
+
+        {bulkImages.length > 0 && (
+          <p className="mt-2 text-white">{bulkImages.length} ไฟล์ที่เลือกแล้ว</p>
+        )}
+
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-4">
+          {previewUrls.map((url, idx) => (
+            <div key={idx} className="relative">
+              <img
+                src={url}
+                alt={`preview-${idx}`}
+                className="w-32 h-32 object-cover rounded shadow-md mx-auto"
+                loading="lazy"
+              />
+              <button
+                onClick={() => handleRemoveImage(idx)}
+                className="absolute top-0 right-0 bg-red-500 text-white rounded-full px-2 py-1 text-sm hover:bg-red-700"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {bulkImages.length > 0 && (
+          <>
+            <button
+              onClick={handleClearAll}
+              className="mt-4 bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
             >
-              🧹 ลบสมาชิกทั้งหมด
+              🗑 ลบรูปทั้งหมด
             </button>
 
             <button
               onClick={async () => {
-                if (!partyName || !partyId) return alert("ไม่พบข้อมูลพรรค");
-                const party = partyName.replace(/^พรรค\s*/, "").trim();
+                if (!partyId || !bulkImages?.length) return;
 
-                try {
-                  const res = await fetch(`/api/scrape-member?party=${encodeURIComponent(party)}`);
-                  const data = await res.json();
-                  console.log("จำนวนสมาชิกที่ดึงได้:", data.members?.length);
+                const removePrefix = (name: string) => {
+                  return name.replace(/^(นาย|นางสาว|นาง|ดร\.?|ศ\.?ดร\.?|พล\.ท\.?)\s*/g, "").trim();
+                };
 
-                  if (!data.members?.length) {
-                    alert("ไม่พบข้อมูลสมาชิก");
-                    return;
+                const snapshot = await getDocs(collection(firestore, "Party", partyId, "Member"));
+                const membersData = snapshot.docs.map(doc => ({
+                  id: String(doc.data().id),
+                  firstName: removePrefix(doc.data().FirstName ?? "").replace(/\s+/g, "_"),
+                  lastName: (doc.data().LastName ?? "").replace(/\s+/g, "_"),
+                  raw: doc.data(),
+                }));
+
+                const updated: Member[] = [];
+                const uploadPromises = [];
+
+                for (const file of bulkImages) {
+                  const rawName = file.name.replace(/\.[^.]+$/, "");
+                  const matched = membersData.find(
+                    m => `${m.firstName}_${m.lastName}` === rawName
+                  );
+
+                  if (!matched) {
+                    console.warn(`ไม่พบสมาชิกที่ตรงกับชื่อไฟล์: ${rawName}`);
+                    continue;
                   }
 
-                  const confirmUpload = confirm(`ดึงข้อมูล ${data.members.length} คน ต้องการบันทึกทั้งหมดหรือไม่?`);
-                  if (!confirmUpload) return;
+                  const fileExt = file.name.split(".").pop()?.toLowerCase() === "png" ? "png" : "jpg";
+                  const storagePath = `party/member/${partyId}/${matched.id}.${fileExt}`;
+                  const imageRef = ref(storage, storagePath);
 
-                  const memberCollection = collection(firestore, `Party/${partyId}/Member`);
-                  const snapshot = await getDocs(memberCollection);
-                  let maxId = Math.max(...snapshot.docs.map(doc => doc.data().id || 0), 0);
+                  uploadPromises.push(
+                    (async () => {
+                      try {
+                        const resizedBlob = await resizeImage(file);
+                        await uploadBytes(imageRef, resizedBlob);
 
-                  const newMembers: Member[] = [];
-                  const savePromises = [];
+                        const imageUrl = `https://firebasestorage.googleapis.com/v0/b/policy-tracker-kp.firebasestorage.app/o/${encodeURIComponent(storagePath)}?alt=media`;
 
-                  for (const m of data.members) {
-                    const nameParts = m.name.trim().split(" ");
-                    const firstName = nameParts.slice(0, -1).join(" ") || "-";
-                    const lastName = nameParts.slice(-1)[0] || "-";
-                    const role = m.role ?? "-";
-                    const newId = ++maxId;
+                        updated.push({
+                          id: matched.id,
+                          name: matched.raw.FirstName,
+                          surname: matched.raw.LastName,
+                          role: matched.raw.Role,
+                          image: imageUrl,
+                        });
 
-                    const docRef = doc(firestore, `Party/${partyId}/Member`, String(newId));
-                    savePromises.push(
-                      setDoc(docRef, {
-                        FirstName: firstName,
-                        LastName: lastName,
-                        Role: role,
-                        id: newId,
-                      })
-                    );
-
-                    newMembers.push({
-                      id: String(newId),
-                      name: firstName,
-                      surname: lastName,
-                      role,
-                      image: "/default-profile.png",
-                    });
-                  }
-
-                  await Promise.all(savePromises);
-
-                  if (newMembers.length > 0) {
-                    setMembers(prev => [...prev, ...newMembers]);
-                    alert("บันทึกสมาชิกทั้งหมดสำเร็จ");
-                  } else {
-                    alert("ไม่สามารถเพิ่มสมาชิกได้");
-                  }
-
-                } catch (err) {
-                  console.error("ดึงข้อมูลล้มเหลว", err);
-                  alert("เกิดข้อผิดพลาด");
-                }
-              }}
-              className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
-            >
-              📥 ดึงข้อมูลสมาชิกจาก กกต.
-            </button>
-
-            <button onClick={goToMemberForm} className="bg-[#5D5A88] text-white px-4 py-2 rounded-md hover:bg-[#46426b]">
-              ➕ เพิ่มข้อมูลสมาชิก
-            </button>
-          </div>
-
-          <div className="flex justify-center mt-6 flex-col items-center">
-            <label className="cursor-pointer bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-              📁 เลือกรูปสมาชิก
-              <input
-                type="file"
-                multiple
-                accept="image/*"
-                onChange={handleFileChange}
-                className="hidden"
-                ref={inputRef}
-              />
-            </label>
-
-            {bulkImages.length > 0 && (
-              <p className="mt-2 text-white">{bulkImages.length} ไฟล์ที่เลือกแล้ว</p>
-            )}
-
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-4">
-              {previewUrls.map((url, idx) => (
-                <div key={idx} className="relative">
-                  <img
-                    src={url}
-                    alt={`preview-${idx}`}
-                    className="w-32 h-32 object-cover rounded shadow-md mx-auto"
-                    loading="lazy"
-                  />
-                  <button
-                    onClick={() => handleRemoveImage(idx)}
-                    className="absolute top-0 right-0 bg-red-500 text-white rounded-full px-2 py-1 text-sm hover:bg-red-700"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            {bulkImages.length > 0 && (
-              <>
-                <button
-                  onClick={handleClearAll}
-                  className="mt-4 bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
-                >
-                  🗑 ลบรูปทั้งหมด
-                </button>
-
-                <button
-                  onClick={async () => {
-                    if (!partyId || !bulkImages?.length) return;
-
-                    const removePrefix = (name: string) => {
-                      return name.replace(/^(นาย|นางสาว|นาง|ดร\.?|ศ\.?ดร\.?|พล\.ท\.?)\s*/g, "").trim();
-                    };
-
-                    const snapshot = await getDocs(collection(firestore, "Party", partyId, "Member"));
-                    const membersData = snapshot.docs.map(doc => ({
-                      id: String(doc.data().id),
-                      firstName: removePrefix(doc.data().FirstName ?? "").replace(/\s+/g, "_"),
-                      lastName: (doc.data().LastName ?? "").replace(/\s+/g, "_"),
-                      raw: doc.data(),
-                    }));
-
-                    const updated: Member[] = [];
-                    const uploadPromises = [];
-
-                    for (const file of bulkImages) {
-                      const rawName = file.name.replace(/\.[^.]+$/, "");
-                      const matched = membersData.find(
-                        m => `${m.firstName}_${m.lastName}` === rawName
-                      );
-
-                      if (!matched) {
-                        console.warn(`ไม่พบสมาชิกที่ตรงกับชื่อไฟล์: ${rawName}`);
-                        continue;
+                      } catch (err) {
+                        console.error(`อัปโหลด ${rawName} ล้มเหลว`, err);
                       }
+                    })()
+                  );
+                }
 
-                      const fileExt = file.name.split(".").pop()?.toLowerCase() === "png" ? "png" : "jpg";
-                      const storagePath = `party/member/${partyId}/${matched.id}.${fileExt}`;
-                      const imageRef = ref(storage, storagePath);
+                await Promise.all(uploadPromises);
 
-                      uploadPromises.push(
-                        (async () => {
-                          try {
-                            const resizedBlob = await resizeImage(file);
-                            await uploadBytes(imageRef, resizedBlob);
+                setMembers((prev) =>
+                  prev.map((m) => {
+                    const updatedMember = updated.find((u) => u.id === m.id);
+                    return updatedMember ? { ...m, image: updatedMember.image } : m;
+                  })
+                );
 
-                            const imageUrl = `https://firebasestorage.googleapis.com/v0/b/policy-tracker-kp.firebasestorage.app/o/${encodeURIComponent(storagePath)}?alt=media`;
+                setBulkImages([]);
+                setPreviewUrls([]);
+                if (inputRef.current) inputRef.current.value = "";
 
-                            updated.push({
-                              id: matched.id,
-                              name: matched.raw.FirstName,
-                              surname: matched.raw.LastName,
-                              role: matched.raw.Role,
-                              image: imageUrl,
-                            });
-
-                          } catch (err) {
-                            console.error(`อัปโหลด ${rawName} ล้มเหลว`, err);
-                          }
-                        })()
-                      );
-                    }
-
-                    await Promise.all(uploadPromises);
-
-                    setMembers(prev =>
-                      prev.map(m =>
-                        updated.find(u => u.id === m.id) || m
-                      )
-                    );
-                    setMembers(prev =>
-                      prev.map(m => updated.find(u => u.id === m.id) || m)
-                    );
-
-                    setBulkImages([]);
-                    setPreviewUrls([]);
-                    if (inputRef.current) inputRef.current.value = "";
-
-                    alert("อัปโหลดรูปทั้งหมดสำเร็จ");
-                  }}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 mt-4"
-                >
-                  📁 อัปโหลดรูปสมาชิก
-                </button>
-              </>
-            )}
-          </div>
-
-          <h2 className="text-3xl text-white text-center mt-6">สมาชิกพรรค</h2>
-          {members.length === 0 ? (
-            <p className="text-white text-center mt-4 text-xl">ไม่มีสมาชิกพรรค</p>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mt-4">
-              {visibleMembers.map((member) => (
-                <div key={member.id} className="relative bg-white p-4 rounded-lg shadow-lg text-center">
-                  <div className="absolute top-2 left-2 text-gray-700 px-2 py-1 text-md ">
-                    ID: {member.id}
-                  </div>
-
-                  <LazyImage
-                    key={`${member.id}-${member.image}`}
-                    src={member.image}
-                    alt={`${member.name} ${member.surname}`}
-                    className="w-24 h-24 mx-auto rounded-full shadow-md object-cover"
-                  />
-
-                  <p className="mt-2 font-semibold">
-                    {member.name} {member.surname}
-                  </p>
-                  <p className="text-gray-600">{member.role}</p>
-                  <div className=" mt-4">
-                    <button
-                      onClick={() => editMember(member.id)}
-                      className="m-2 bg-yellow-500 text-white px-3 py-1 rounded-md hover:bg-yellow-600"
-                    >
-                      ✏ แก้ไข
-                    </button>
-                    <button onClick={() => deleteMember(member.id)} className="m-2 bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-700">
-                      ❌ ลบ
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          <div ref={observerRef} className="h-10 mt-10" />
-        </main>
+                alert("อัปโหลดรูปทั้งหมดสำเร็จ");
+              }}
+              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 mt-4"
+            >
+              📁 อัปโหลดรูปสมาชิก
+            </button>
+          </>
+        )}
       </div>
-    </div>
+
+      <h2 className="text-3xl text-white text-center mt-6">สมาชิกพรรค</h2>
+      {members.length === 0 ? (
+        <p className="text-white text-center mt-4 text-xl">ไม่มีสมาชิกพรรค</p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mt-4">
+          {visibleMembers.map((member) => (
+            <div key={member.id} className="relative bg-white p-4 rounded-lg shadow-lg text-center">
+              <div className="absolute top-2 left-2 text-gray-700 px-2 py-1 text-md ">
+                ID: {member.id}
+              </div>
+
+              <LazyImage
+                key={`${member.id}-${member.image}`}
+                src={member.image}
+                alt={`${member.name} ${member.surname}`}
+                className="w-24 h-24 mx-auto rounded-full shadow-md object-cover"
+              />
+
+              <p className="mt-2 font-semibold">
+                {member.name} {member.surname}
+              </p>
+              <p className="text-gray-600">{member.role}</p>
+              <div className=" mt-4">
+                <button
+                  onClick={() => editMember(member.id)}
+                  className="m-2 bg-yellow-500 text-white px-3 py-1 rounded-md hover:bg-yellow-600"
+                >
+                  ✏ แก้ไข
+                </button>
+                <button onClick={() => deleteMember(member.id)} className="m-2 bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-700">
+                  ❌ ลบ
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <div ref={observerRef} className="h-10 mt-10" />
+    </main>
+      </div >
+    </div >
   );
 }

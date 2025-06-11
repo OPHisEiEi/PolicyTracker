@@ -67,7 +67,7 @@ export default function AdminSignupPage() {
       setPartyId(null);
       router.push("/admin");
     } catch (error: any) {
-      console.error("เกิดข้อผิดพลาด:", error.message);
+     
       setMessage(error.message);
     }
   };

@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   try {
     const query = `
       MATCH (c:Campaign)-[:PART_OF]->(p:Policy)-[:BELONGS_TO]->(party:Party)
-      ${partyId ? "WHERE party.id = $partyId" : ""}
+      ${partyId ? "WHERE toInteger(party.id) = $partyId" : ""}
       RETURN 
         c.id AS id, 
         c.name AS name,
